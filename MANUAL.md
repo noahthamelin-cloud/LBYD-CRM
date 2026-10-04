@@ -48,17 +48,17 @@ It does six jobs:
 
 ## 3. Who uses it
 
-Four logins. Each opens to the screen that matters most to that person.
+Three portals, one shared set of data. Each opens to the screen that matters most to
+that person.
 
 | Person | Role | Opens on | Sees |
 |---|---|---|---|
 | Noah | Sales | Today | Today, Pipeline, Contacts, Money, Insights |
-| Abdullahi | Sales | Today | Same as Noah |
 | Brett | CEO | Money | Everything |
 | Ryan | Client Success | Today (client tasks) | Today, Clients, Contacts, Money, Insights |
 
-Demo PINs: Noah 1001, Abdullahi 1002, Brett 1003, Ryan 1004. They are shown on the
-login screen while in demo mode.
+PINs: Noah 333, Brett 222, Ryan 444. They are shown on the login screen while in
+demo mode.
 
 ---
 
@@ -189,7 +189,8 @@ this exact record, no guessing.
 **Tabs**
 
 - **Details:** contact info, source, owner, hot button, next action and date, sales
-  call time and Meet link. Edits save when you leave the field. Archive is at the
+  call time and Meet link, and the tracking fields carried over from Brett's
+  Network Tracking sheet (section 7a). Edits save when you leave the field. Archive is at the
   bottom. Archiving hides someone; nothing is ever deleted.
 - **Forms:** every form they've filled in, newest first, question by question. This is
   where Noah reads the application before a sales call and Brett reads the workbook
@@ -198,6 +199,24 @@ this exact record, no guessing.
   or FAQ. Anything tagged other than Note also appears on the Insights screen.
 - **Payments:** close the deal and log payments (section 8).
 - **Activity:** the full history: stage changes, messages sent, payments, edits.
+
+### 7a. Brett's Network Tracking columns
+
+The CRM started fresh rather than importing Brett's sheet, but it keeps his columns so
+his way of tracking carries on:
+
+| Brett's sheet | In the CRM |
+|---|---|
+| Name, Contact, Social Media | Name, Instagram, WhatsApp, Email |
+| Business / Notes | Hot button, plus Notes tab |
+| Brett to Reach Out | Owner (set to Brett) |
+| Gender | Gender |
+| Meeting Country, Home Country, Secondary Country | Same names, Tracking section |
+| Initial Contact | Initial contact (date) |
+| Message Result | Message result |
+| Follow Up Message, Follow Up Date | Next action / follow-up message and date |
+| Value Hot Button Offer (SKOOL tab) | Hot button |
+| Event tabs (WPG, Kelowna) | Event field |
 
 ---
 

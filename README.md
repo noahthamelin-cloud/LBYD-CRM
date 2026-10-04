@@ -13,8 +13,7 @@ block for Supabase and connects the three JotForms and Cal.com.
 
 ## Quick start
 
-Open `public/index.html` in a browser. Demo PINs: Noah 1001, Abdullahi 1002,
-Brett 1003, Ryan 1004.
+Open `public/index.html` in a browser. PINs: Noah 333, Brett 222, Ryan 444.
 
 ## Deploy
 
