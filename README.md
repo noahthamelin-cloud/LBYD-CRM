@@ -1,40 +1,30 @@
 # LBYD CRM
 
-Client pipeline for Live Before You Die: leads, applications, sales calls, payments,
-member tiers and client success, in one place.
-
-**Read `MANUAL.md` first.** It is the plain-language guide.
+Client pipeline for Live Before You Die: leads, events, applications, sales calls,
+payments, member tiers and client success. **Read `MANUAL.md` first.**
 
 ## Status
 
-Demo build. Data saves in each person's browser only, and a banner says so on every
-screen. Use it to show the team and collect changes. The live build swaps the storage
-block for Supabase and connects the three JotForms and Cal.com.
-
-## Quick start
-
-Open `public/index.html` in a browser. PINs: Noah 333, Brett 222, Ryan 444.
+v2 test build. JotForm submissions and Cal.com bookings are live through a Netlify function. Everything
+else saves per browser until the Supabase move.
 
 ## Deploy
 
-Push to GitHub, import the repo in Netlify, deploy. `netlify.toml` handles the settings.
-No build step.
+Push to GitHub, connect in Netlify. Then set environment variables (MANUAL section 4b):
+`JOTFORM_API_KEY`, `CRM_PINS`, `FORM_ALLOWLIST`, optional `JOTFORM_API_BASE`; for Cal.com
+(section 4c) `CAL_API_KEY`, `CAL_EVENT_SLUGS`, optional `CAL_API_VERSION`. Redeploy.
 
 ## Stack
 
-Vanilla JS in one HTML file. No framework, no dependencies. Font: Bricolage Grotesque
-from Google Fonts, with system fallbacks.
+Vanilla JS in one HTML file, two Netlify Functions (no dependencies, Node 18+ fetch).
 
 ## Where to change things
 
-| What | Where in `public/index.html` |
+| What | Where |
 |---|---|
-| Form links | `FORMS` |
-| Logins, PINs, which tabs each person sees | `ROLES` |
-| Sales and client stages | `SALES_STAGES`, `CS_STAGES` |
-| Program prices | `PLANS` |
-| Member tiers and their names | `TIERS` |
-| WhatsApp messages sent to clients | `MSG` |
-| Note tags (objection, question...) | `TAGS` |
-| Demo contacts | `seed()` |
-| Where data is saved | `Store` (the only block that changes for Supabase) |
+| Forms, Cal.com, logins, stages, prices, tiers, messages | Settings block, top of the script in `public/index.html` |
+| Storage (swap for Supabase) | `Store` block |
+| Form field matching | `mergeSubmission()` |
+| Next-move rules | `nextMove()` |
+| JotForm reading | `netlify/functions/jotform-sync.js` |
+| Cal.com reading | `netlify/functions/cal-sync.js`, matching in `syncCal()` |
