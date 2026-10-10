@@ -1,337 +1,355 @@
-# LBYD CRM: Instructions Manual
+# LBYD CRM: Instructions Manual (v3, test build)
 
-Written for someone with no background at all. If you have just been handed this
-system and nobody explained it, start here and read straight through.
+Written for someone with no background at all. If you were just handed this system and
+nobody explained it, start here and read straight through.
 
 ---
 
 ## 1. What this is
 
-The LBYD CRM is a private website the Live Before You Die team uses to keep track of
-everyone who comes near the program, from the first Instagram DM to a paying member
-finishing the program. It replaces spreadsheets, screenshots and memory.
+A private website the Live Before You Die team uses to run everyone who comes near the
+program: how we met them, which events they were invited to and came to, the forms they
+filled in, when they joined, what they pay each month, and how they're progressing
+through the course.
 
-It does six jobs:
+**The offer it's built around (October 2026):**
 
-1. Keeps one record per person, whichever form or conversation they came through.
-2. Tells each person on the team what needs doing today.
-3. Sends the event invite, the application and the onboarding workbook on WhatsApp
-   in one tap, with a personal link.
-4. Shows every form answer a person has given, so the sales call and the onboarding
-   call start with context.
-5. Tracks deals and payments, and shows cash collected against the member goals.
-6. Collects every objection, question and struggle into one feed for content ideas.
+| Tier | Price | Includes |
+|---|---|---|
+| Base | $500 / month | Group access, weekly group calls, the 12-week course |
+| Premium | set per client for now | Everything in Base, plus one-on-ones |
+
+There is one 12-week course today. More courses can be added later (section 14).
+
+**The lead flow:** meet people (Instagram and social, in person, WhatsApp, personal
+connections), invite them to the **Friday Night Hangout** (the main push: high energy,
+music, dancing, karaoke), invite good fits to **in-person events**, and run the
+**online workshop** every two weeks. People who show up and get involved move toward
+joining.
 
 ---
 
-## 2. Demo build vs live build
+## 2. Test build: what is live and what is not
 
-**This is the demo build.** A yellow banner says so at the top of every screen.
+A yellow bar at the top of every screen explains this.
 
-- Data is saved in the browser of whoever is using it. Brett's copy and Noah's copy
-  are separate. Clearing the browser clears the data.
-- It starts with sixteen made-up contacts called Test 1 to Test 16, spread across
-  every stage so every screen has something on it.
-- **Do not enter real client details.** Nothing typed here carries over.
-- Forms are not connected yet. The sample answers on Test contacts show how real
-  submissions will look.
-
-**The live build** (next step) changes four things and leaves the screens the same:
-
-1. Data moves to Supabase, a proper database. Every contact, note and payment is its
-   own row, so two people saving at once never overwrite each other. Daily backups.
-2. Real logins replace the PINs.
-3. The three JotForms send their answers straight into the right contact.
-4. Cal.com bookings land on the contact with the Google Meet link.
+- **Live and shared:** JotForm submissions and Cal.com bookings.
+- **Saved in this browser only:** everything else (stages, notes, events, memberships,
+  payments, to-dos). Each person's copy is separate until the database move (Supabase).
+- **Test data:** Test 1 to Test 16 and a few test events, all marked "Test". Untick
+  **Show test data** in the yellow bar to see only real people. Settings has a reset.
 
 ---
 
 ## 3. Who uses it
 
-Three portals, one shared set of data. Each opens to the screen that matters most to
-that person.
+| Person | Role | PIN | Opens on | Built for |
+|---|---|---|---|---|
+| Noah | Sales | 333 | Today | Doing: next moves, invites, follow-ups |
+| Ryan | Client Success | 444 | Today | Doing: onboarding, check-ins, member care |
+| Brett | CEO | 222 | Pulse | Seeing: what happened, what's coming, what to know |
 
-| Person | Role | Opens on | Sees |
-|---|---|---|---|
-| Noah | Sales | Today | Today, Pipeline, Contacts, Money, Insights |
-| Brett | CEO | Money | Everything |
-| Ryan | Client Success | Today (client tasks) | Today, Clients, Contacts, Money, Insights |
-
-PINs: Noah 333, Brett 222, Ryan 444. They are shown on the login screen while in
-demo mode.
+PINs keep casual visitors out. They are not strong security, because they sit inside the
+page code. Real logins come with the database move.
 
 ---
 
-## 4. Putting the demo online (GitHub, then Netlify)
+## 4. Setup (one time)
 
-You only do this once. After that, every change you push to GitHub goes live by itself.
+### 4a. Put it online
 
-1. Go to github.com and sign in (use the LBYD account if you have one).
-2. Click **New repository**. Name it `lbyd-crm`. Set it to **Private**. Create it.
-3. On the new repo page, click **uploading an existing file**. Drag in everything from
-   this folder: the `public` folder, `netlify.toml`, `README.md`, `MANUAL.md` and
-   `.gitignore`. Click **Commit changes**.
-   (If `.gitignore` is hidden on your Mac, press Cmd + Shift + . in Finder to show it.
-   It is optional for the demo.)
-4. Go to app.netlify.com and sign in with GitHub.
-5. Click **Add new site**, then **Import an existing project**, then **GitHub**, and
-   pick `lbyd-crm`.
-6. Leave every build setting as it is. `netlify.toml` already tells Netlify the site
-   lives in the `public` folder. Click **Deploy**.
-7. After about a minute you get a link ending in `.netlify.app`. Under
-   **Site configuration**, then **Change site name**, rename it to something like
-   `lbyd-crm`.
-8. Send that link to Brett and Ryan with their demo PIN.
+1. GitHub: open the `lbyd-crm` repo (or create a private one with that name).
+2. Upload everything in this folder: `public`, `netlify`, `netlify.toml`, `package.json`,
+   `README.md`, `MANUAL.md`, `.gitignore`. Replace the old files. Commit.
+3. Netlify: if the site is already connected to the repo, it redeploys by itself.
+   If not: Add new site, Import an existing project, GitHub, pick `lbyd-crm`, Deploy.
+   Leave the build settings alone; `netlify.toml` handles them.
 
-**On a phone:** open the link in Safari, tap Share, then **Add to Home Screen**. It
-then opens like an app.
+### 4b. Connect the forms (needed for sign-ups to appear)
 
-**To update it later:** change the file, upload it to the same GitHub repo (it replaces
-the old one), and Netlify redeploys on its own within a minute.
+1. **Get a JotForm API key.** JotForm, profile picture, Settings, API, Create New Key.
+   Set it to **Read Access**. Copy it.
+2. **Add four settings in Netlify.** Site configuration, Environment variables,
+   Add a variable, one at a time:
+
+| Key | Value |
+|---|---|
+| `JOTFORM_API_KEY` | the key from step 1 |
+| `CRM_PINS` | `333,222,444` |
+| `FORM_ALLOWLIST` | `262708463844061,262762618270056,262763667814065` |
+
+   `FORM_ALLOWLIST` makes sure the CRM can only ever read LBYD forms, never other
+   clients' forms on the same JotForm account. **Every time you add an event with a new
+   JotForm, add its form ID here too** (the number at the end of the form link).
+
+   Only if your JotForm account is on the EU server, also add
+   `JOTFORM_API_BASE` = `https://eu-api.jotform.com`.
+3. **Redeploy.** Deploys, Trigger deploy, Deploy site. Settings only take effect after
+   a deploy.
+4. **Check it.** Log in. The pill at the top right should say "Forms synced just now".
+   The Oct 7 Free Live Session should show its real sign-ups as RSVPs.
+
+If the pill says "Sync failed", tap it to see why. Section 13 lists the fixes.
+
+### 4c. Connect Cal.com (sales calls)
+
+1. **Get a Cal.com API key.** Cal.com, Settings, Developer, API keys, create one.
+2. **Find the slug of the LBYD call event type.** It's the last part of the booking
+   link: in `cal.com/noah/lbyd-strategy-call` the slug is `lbyd-strategy-call`.
+3. **Add two settings in Netlify** (Environment variables):
+
+| Key | Value |
+|---|---|
+| `CAL_API_KEY` | the key from step 1 |
+| `CAL_EVENT_SLUGS` | the slug from step 2 (several allowed, comma separated) |
+
+   `CAL_EVENT_SLUGS` keeps your other Cal.com meetings (IPB, XPLR clients) out of the
+   LBYD CRM. With it set, a booking from someone not yet in the CRM creates them.
+4. **Redeploy.**
+5. Put the same booking link in `CAL_LINK` near the top of `public/index.html`, so the
+   "Book the call" WhatsApp message includes it.
+
+What happens after that: each sync (on login, or the Sync button) reads the bookings.
+A booking attaches to the person by email, then phone, moves them to Sales call, and fills
+in the time and Google Meet link. A reschedule updates the time. A cancellation marks the
+call Cancelled and puts "Rebook" in Next moves. Bookings show up on the next sync, not
+the instant they're made. Instant updates come with the database move.
 
 ---
 
-## 5. The stages
+## 5. Stages
 
-Every contact has a **sales stage**. Once they buy, they also get a **client stage**.
+```
+Lead → Invited → Showed up → Engaged → Applied → Call → Member (Base) → Member (Premium)
+```
 
-**Sales stages**
+**Not a fit** is a separate outcome.
 
 | Stage | Means |
 |---|---|
-| Lead | We know who they are. Nothing sent yet. |
-| Invited | Event link sent. They haven't signed up. |
-| Registered | Signed up for a free event. |
-| Attended | Showed up to the event. |
-| Applied | Sent in the program application. |
-| Sales call | Call booked or done with Noah. |
-| Sold | Paid. Counts as a member. |
-| Not a fit | Said no, or we said no. Stays on record. |
+| Lead | We know who they are. Nothing sent. |
+| Invited | Invited to at least one event. |
+| Showed up | Came to an event. |
+| Engaged | Came and took part (talked, joined in, stayed involved). |
+| Applied | Sent in the application. |
+| Call | Call booked or held. |
+| Member (Base) / (Premium) | Paying monthly. Set from the Membership tab, never by hand. |
 
-**Client stages** (Ryan's side)
+People move forward automatically: inviting makes them Invited, "Showed" makes them
+Showed up, "Participated" makes them Engaged, an application makes them Applied, a
+Cal.com booking makes them Call, starting a membership makes them a Member. Nothing ever
+moves anyone backward.
 
-| Stage | Means |
+**Client stages (Ryan's side):** Onboarding sent, Workbook done, Onboarding call,
+Active, At risk, Completed.
+
+**Call outcomes:** Booked, Showed (deciding), No-show, Joined, Not yet, Cancelled.
+
+---
+
+## 6. Lead sources and "How we met"
+
+Every person has a **lead source**: Instagram / social, In person, WhatsApp, or
+Personal connection. And a **How we met / the conversation** note: where you met, what
+you talked about, what they care about. For example: "Met at the café in Pererenan.
+He's a coach, we talked about surfing and building online."
+
+That note shows at the top of their record, on their pipeline card, and under their
+name in Next moves, so it's in front of you before every message. Search on the
+Contacts page covers it too, so "surf" finds everyone you talked surfing with.
+
+The **+ Add prospect** button (top of every screen) asks for it straight away.
+
+**Location** is plain text. Type it however you like.
+
+---
+
+## 7. Events
+
+Three types: **Friday Night Hangout**, **In-person event** (invite only), **Online
+workshop**.
+
+**+ New event:** type, name, date and time, location, WhatsApp group link, and an
+optional JotForm sign-up link. **Repeat** creates a run of events in one go (every week
+or every two weeks, 4, 6 or 8 of them). Each one gets its own page, so update the
+WhatsApp group link on each as you create the groups.
+
+**Each person's attendance is tracked in four steps:**
+
+| Step | Means | Stage it sets |
+|---|---|---|
+| Invited | We invited them | Invited |
+| RSVP | They said yes, or signed up on the form | |
+| Showed | They came | Showed up |
+| Participated | They got involved | Engaged |
+
+Plus **Missed** for anyone who said yes and didn't come.
+
+**Inviting someone:** from the event page ("Invite someone"), from the person's Events
+tab, or straight from Next moves. **Invite on WhatsApp** opens the right invite message
+for that event type with the date filled in. **Mark invited** just records it, for when
+you invited them in person.
+
+**On the event page:** everyone invited with their four steps, plus Nudge (no RSVP
+yet), Remind (said yes) and Follow up (came) buttons. On the right: all the details and
+the **debrief** (what worked, what didn't, notes, recording link).
+
+**Numbers per event:** invited, RSVP'd, showed up, participated, joined, and new monthly
+revenue from people who joined after it. Money, By event compares every event side by
+side, so you can see which events actually bring in members.
+
+---
+
+## 8. Form standing
+
+Every record shows where each form stands: **Not sent**, **Sent**, or **In**.
+
+- **Event:** Sent once they're invited, In once they RSVP or sign up.
+- **Application:** Sent when you send it from the CRM, In when it's submitted.
+- **Onboarding:** same, for the workbook.
+
+Links sent from the CRM carry the person's CRM ID, so what they submit lands on their
+record.
+
+---
+
+## 9. Noah's Today
+
+**Numbers:** RSVPs for the next event, new leads this week, invites this week, showed up
+this week, new members this month, monthly recurring revenue.
+
+**Next moves**, in order of urgency, each with how-we-met, stage, and a one-tap
+WhatsApp button with the message written:
+
+1. New from a form, not contacted: say hi.
+2. Call within a day: reminder.
+3. Missed or cancelled a call: rebook.
+4. Applied: book the call, or Review if they're not ready to invest.
+5. Had the call, not joined: follow up.
+6. RSVP'd to an event within a day and a half: reminder.
+7. Came to an event in the last 5 days: follow up while it's fresh.
+8. Engaged but no application: send it.
+9. Invited 2+ days ago with no RSVP: nudge.
+10. Follow-up date reached.
+11. Not invited to anything coming up: invite to the next hangout.
+
+**Done** marks someone handled for now. On the right: the next two events, calls
+coming up, and the shared to-do list.
+
+---
+
+## 10. Ryan's Today and the client profile
+
+**Numbers:** active members, who needs a check-in, workbooks out, at risk.
+**Lists:** send onboarding, check in (no contact for 7+ days, with their course week),
+workbooks to chase, onboarding calls to book, at risk, and no payment logged this month
+(from the 5th of the month).
+
+**Clients** shows a card per member: tier, week of the course with a progress bar,
+current goal, client stage, last contact. Tap for the **client profile**: tier and
+price, week X of 12, start date, whether this month is paid, how we met, how they like
+to be held accountable, their journey line, goals ("Working on"), their vision from the
+workbook, life ratings, a check-in composer, and the full timeline.
+
+The rest of client success waits on Ryan's SOPs.
+
+---
+
+## 11. Brett's Pulse
+
+Brett's portal is for seeing, not doing. No to-do lists, no next moves.
+
+- **This week in numbers:** active members, monthly recurring, new members this week,
+  new leads, invites sent, show-ups.
+- **Recent client connections:** every check-in, win, struggle and note on members from
+  the last three weeks, newest first, with who logged it.
+- **This week across the business:** joins, upgrades, cancellations, sign-ups,
+  applications, show-ups, calls booked, goals completed.
+- **Coming up:** events in the next week with RSVP counts, sales calls, onboarding calls
+  to book.
+- **Worth knowing:** members gone quiet (10+ days) or at risk, recent wins, and where
+  every member is in the 12 weeks.
+
+Tap anything to open it. Brett can still add notes on a client profile.
+
+---
+
+## 12. Memberships and money
+
+**Starting a membership:** open the person, **Membership** tab, pick Base or Premium,
+check the monthly price (Premium needs a price typed in), the start date and the
+course, then **Start membership**. That makes them a Member, starts their 12 weeks, and
+adds them to the count. Then log the first payment and send onboarding.
+
+**Each month:** **Log payment** on the same tab (it pre-fills their monthly price).
+Anyone without a payment logged this month shows on Ryan's list from the 5th and on the
+Money page. Connecting Stripe through Skool to do this automatically is a later step.
+
+**Upgrade to Premium** (enter the Premium price), **Cancel membership** (history stays),
+and **Restart membership** are on the same tab.
+
+**Money page:** the six member goals (10, 50, 100, 250, 500, 1,000), monthly recurring
+revenue, cash this month and all time, new members, upgrades and cancellations this
+month, Base vs Premium split, the funnel, who hasn't paid this month, and results by
+event.
+
+---
+
+## 13. If something goes wrong
+
+| What you see | Fix |
 |---|---|
-| Onboarding sent | Workbook link sent. Waiting on them. |
-| Workbook done | Workbook submitted. Book the onboarding call. |
-| Onboarding call | Call with Brett booked or done. |
-| Active | In the program and engaged. |
-| At risk | Gone quiet, behind, or unhappy. Needs attention. |
-| Completed | Finished the program. |
-
-Change a stage from the dropdown at the top of any contact. Every change is logged
-with who did it and when.
+| "Sync starts on Netlify" | You opened the file on your computer. Use the Netlify link. |
+| "JOTFORM_API_KEY is not set" or "CRM_PINS is not set" | Add it in Netlify (section 4b), then redeploy. |
+| "Not authorised" | `CRM_PINS` in Netlify doesn't match the PINs. Fix and redeploy. |
+| An event shows no sign-ups from its form | The event's JotForm link is missing, or its form ID isn't in `FORM_ALLOWLIST`. |
+| Calls not coming in from Cal.com | Check `CAL_API_KEY` and `CAL_EVENT_SLUGS` and redeploy. Tap the sync pill for the message. If it mentions the API version, set `CAL_API_VERSION` to what Cal.com's docs show. |
+| WhatsApp opens a contact picker | Their number is missing or has no country code. Fix it in Details. |
+| A real person appears twice | Their email, phone and IG differ between sources. Archive one, add notes to the other. The database move adds a proper merge. |
 
 ---
 
-## 6. Using it day to day
+## 14. Changing things
 
-### Today
+All in `public/index.html`, near the top of the script:
 
-Your to-do list, built automatically. Sections only appear when something is in them.
-
-- **Follow-ups due:** anyone whose next action date is today or earlier.
-- **Applications to review:** applied, no call booked yet.
-- **Calls coming up:** booked sales calls, soonest first.
-- **Ready for onboarding:** sold, but the workbook hasn't been sent.
-- **Going cold:** invited or registered with no activity for 5 days.
-- **Workbooks to chase** (Ryan, Brett): workbook sent 2+ days ago, not back yet.
-- **Onboarding calls to book** (Ryan, Brett): workbook is in.
-- **At risk** (Ryan, Brett): anyone marked At risk.
-
-The number beside **Today** in the menu is how many items are waiting.
-
-### Pipeline
-
-A board with one column per sales stage. Tap any card to open the person.
-A star means they've been marked **Serious**. A gold chip is their budget from a form;
-gold means $5,000 or more.
-
-### Clients
-
-The same kind of board for everyone who has bought, by client stage. Shows their plan
-and whether they still owe money.
-
-### Contacts
-
-Everyone, searchable by name, email, Instagram, WhatsApp, location or hot button.
-The dropdown filters by stage, or shows archived contacts.
-
-### Adding a contact by hand
-
-Use **+ Add contact** (on Pipeline or Contacts) for anyone you meet in person or who
-didn't come through a form. Name plus one way to reach them is enough.
-
-Before saving, the CRM checks whether that person already exists. If the email,
-WhatsApp number or Instagram handle matches someone, it stops and offers to open their
-record instead of making a second one. See section 9.
-
----
-
-## 7. The contact record
-
-Tap anyone to open their record. The top section stays put while you switch tabs.
-
-**Top section**
-
-- Stage dropdowns, and the **Serious** flag.
-- **WhatsApp** opens a chat with them.
-- **Send event invite / Send application / Send onboarding** opens WhatsApp with a
-  ready-written message and their personal form link. You just press send. The
-  buttons only show when they make sense: the application button disappears once
-  they've applied, and the onboarding button appears once they're sold.
-- **Copy link** copies the personal link, for sending on Instagram or anywhere else.
-- **Join call** appears when a sales call is booked.
-
-The personal link carries their CRM ID, so in the live build their answers attach to
-this exact record, no guessing.
-
-**Tabs**
-
-- **Details:** contact info, source, owner, hot button, next action and date, sales
-  call time and Meet link, and the tracking fields carried over from Brett's
-  Network Tracking sheet (section 7a). Edits save when you leave the field. Archive is at the
-  bottom. Archiving hides someone; nothing is ever deleted.
-- **Forms:** every form they've filled in, newest first, question by question. This is
-  where Noah reads the application before a sales call and Brett reads the workbook
-  before onboarding.
-- **Notes:** add a note and tag it: Note, Objection, Question, Struggle, Their words,
-  or FAQ. Anything tagged other than Note also appears on the Insights screen.
-- **Payments:** close the deal and log payments (section 8).
-- **Activity:** the full history: stage changes, messages sent, payments, edits.
-
-### 7a. Brett's Network Tracking columns
-
-The CRM started fresh rather than importing Brett's sheet, but it keeps his columns so
-his way of tracking carries on:
-
-| Brett's sheet | In the CRM |
+| To change | Edit |
 |---|---|
-| Name, Contact, Social Media | Name, Instagram, WhatsApp, Email |
-| Business / Notes | Hot button, plus Notes tab |
-| Brett to Reach Out | Owner (set to Brett) |
-| Gender | Gender |
-| Meeting Country, Home Country, Secondary Country | Same names, Tracking section |
-| Initial Contact | Initial contact (date) |
-| Message Result | Message result |
-| Follow Up Message, Follow Up Date | Next action / follow-up message and date |
-| Value Hot Button Offer (SKOOL tab) | Hot button |
-| Event tabs (WPG, Kelowna) | Event field |
+| Tiers, prices, what's included | `TIERS_PLAN` (set Premium's price once it's fixed) |
+| Courses (add a new 12-week course) | `COURSES`, `COURSE_WEEKS` |
+| Application and workbook form links | `FORMS` |
+| Cal.com link for "Book the call" | `CAL_LINK` |
+| Logins, PINs, tabs per person | `ROLES` (also update `CRM_PINS` in Netlify) |
+| Stages, call outcomes, lead sources | `SALES_STAGES`, `CS_STAGES`, `CALL_OUTCOMES`, `SOURCES` |
+| Event types | `EVENT_TYPES` |
+| Member goals | `TIERS` |
+| Check-in and quiet timing | `CHECKIN_DAYS`, `QUIET_DAYS` |
+| Every WhatsApp message | `MSG` (client-facing: no em dashes) |
 
 ---
 
-## 8. Deals and payments
+## 15. Not built yet
 
-**Closing a deal.** Open the contact, go to **Payments**, pick 6 months ($5,000) or
-12 months ($8,000), adjust the price if it's a custom deal, choose **Paid in full** or
-**Payment plan**, and tap **Close the deal**. That marks them Sold and adds them to
-the member count.
-
-**Logging a payment.** On the same tab, enter the amount, date and method, then
-**Log payment**. The amount box pre-fills with what's still owed. Log each installment
-as it comes in. In v1 this is manual. Connecting Stripe (through Skool) to do it
-automatically is a later step.
-
-**Contracted vs collected.** A $5,000 deal on a plan is $5,000 contracted but only
-the payments logged so far are collected. The CRM shows both, plus what's still owed.
+1. **Database (Supabase) and real logins.** Everything shared, daily backups.
+2. **Instant updates.** JotForm and Cal.com webhooks instead of syncing on login.
+3. **Client success SOPs** built into Ryan's portal.
+4. **Local time for any contact,** looked up from their location (saved for a future
+   release).
+5. **Stripe through Skool,** so monthly payments log themselves.
+6. **Weekly export to Google Drive.**
+7. **Claude connector:** send a screenshot and a note, the CRM updates.
+8. **LBYD branding** (black, gold and white) once the logo is final.
 
 ---
 
-## 9. How the CRM avoids duplicate people
-
-One person, one record. When someone is added, the CRM looks for an existing match in
-this order:
-
-1. Their CRM ID (only in links sent from the CRM, live build)
-2. Email
-3. Full WhatsApp number, with country code
-4. Instagram handle (ignores capitals and the @)
-
-Phone numbers are matched on the full number, not the last few digits, because the
-audience is in many countries. If you type an email, number or handle into a record
-that already belongs to someone else, the CRM refuses and tells you who has it.
-
----
-
-## 10. Money screen
-
-- **The columns at the top** are the six member goals: 10, 50, 100, 250, 500 and
-  1,000 members. Each fills as members are added. A filled column turns gold. The one
-  outlined in gold is the next goal, and the text above says how many to go.
-- **Cash collected, contracted, still owed, deals closed, average deal.**
-- **How people are buying:** 6 vs 12 months, and paid in full vs payment plan.
-- **Funnel:** how many people reached each stage from Registered to Sold.
-- **Owed on payment plans:** who still owes what. Tap to open them.
-
-Everyone can see this screen.
-
----
-
-## 11. Insights
-
-Every tagged note from every contact in one feed: objections, questions, struggles,
-the exact words people use, and FAQs. Filter by tag. This is the content idea bank
-and the raw material for sales scripts and FAQs. The habit that makes it work: after
-every call or DM conversation, add one tagged note.
-
----
-
-## 12. Settings
-
-- **Download CSV:** a spreadsheet of every contact.
-- **Download full backup (JSON):** everything, for safekeeping.
-- **Forms:** the three JotForm links.
-- **Reset demo data:** puts Test 1 to Test 16 back and clears anything added.
-
----
-
-## 13. Changing things
-
-All in `public/index.html`, near the top of the script, in clearly named blocks:
-
-| To change | Edit the block |
-|---|---|
-| Form links | `FORMS` |
-| Logins and PINs, which tabs each person sees | `ROLES` |
-| Stages | `SALES_STAGES`, `CS_STAGES` |
-| Prices | `PLANS` |
-| Member goal numbers and names | `TIERS` |
-| WhatsApp messages | `MSG` (client-facing: no em dashes) |
-| Note tags | `TAGS` |
-
----
-
-## 14. Not built yet (in order)
-
-1. **Supabase database and real logins.** Shared data, daily backups, privacy
-   enforced by the database.
-2. **Form intake.** One webhook for all three JotForms, matching people as in
-   section 9 and keeping every raw answer.
-3. **Cal.com.** Bookings move the contact to Sales call with the Meet link attached.
-4. **Weekly export to Google Drive.** A second backup outside Supabase.
-5. **Stripe through Skool.** Payments logged automatically, if Skool payments show in
-   Brett's Stripe with the buyer's email.
-6. **Claude connector.** Brett sends a screenshot and a note to Claude, and Claude
-   updates the contact.
-
----
-
-## 15. If something goes wrong
-
-- **Screen is blank or stuck:** refresh. If still stuck, try another browser.
-- **The demo data looks messy:** Settings, then Reset demo data.
-- **Fonts look plain:** the custom font didn't load. Everything still works.
-- **WhatsApp button opens a chat picker instead of the person:** their number is
-  missing or has no country code. Fix it in Details.
-
----
-
-## 16. Files in this project
+## 16. Files
 
 | File | What it is |
 |---|---|
 | `public/index.html` | The whole app |
-| `netlify.toml` | Tells Netlify where the site is |
+| `netlify/functions/jotform-sync.js` | Reads JotForm submissions (API key lives in Netlify) |
+| `netlify/functions/cal-sync.js` | Reads Cal.com bookings (API key lives in Netlify) |
+| `netlify.toml` | Tells Netlify where the site and functions live |
+| `package.json` | Project info for Netlify |
 | `README.md` | Short technical summary |
 | `MANUAL.md` | This guide |
-| `.gitignore` | Keeps junk files out of GitHub |

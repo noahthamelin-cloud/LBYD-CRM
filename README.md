@@ -1,11 +1,11 @@
 # LBYD CRM
 
-Client pipeline for Live Before You Die: leads, events, applications, sales calls,
-payments, member tiers and client success. **Read `MANUAL.md` first.**
+Client pipeline for Live Before You Die: leads, events, applications, calls,
+monthly memberships, member goals and client success. **Read `MANUAL.md` first.**
 
 ## Status
 
-v2 test build. JotForm submissions and Cal.com bookings are live through a Netlify function. Everything
+v3 test build (monthly memberships, new lead flow, Brett's Pulse). JotForm submissions and Cal.com bookings are live through a Netlify function. Everything
 else saves per browser until the Supabase move.
 
 ## Deploy
@@ -26,5 +26,6 @@ Vanilla JS in one HTML file, two Netlify Functions (no dependencies, Node 18+ fe
 | Storage (swap for Supabase) | `Store` block |
 | Form field matching | `mergeSubmission()` |
 | Next-move rules | `nextMove()` |
+| Brett's overview | `viewPulse()` |
 | JotForm reading | `netlify/functions/jotform-sync.js` |
 | Cal.com reading | `netlify/functions/cal-sync.js`, matching in `syncCal()` |

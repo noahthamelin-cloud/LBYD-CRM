@@ -315,6 +315,30 @@ label.f>input,label.f>select,label.f>textarea{margin-top:4px;color:var(--ink);fo
   .move .acts .btn{flex:1;justify-content:center}
   .rate{grid-template-columns:100px 1fr 24px}
 }
+
+/* ---------- v3 additions ---------- */
+.steps{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-wrap:nowrap}
+.steps button{all:unset;cursor:pointer;padding:5px 9px;font-size:12px;font-weight:600;color:var(--mute);background:#fff;border-left:1px solid var(--line);white-space:nowrap}
+.steps button:first-child{border-left:0}
+.steps button.on{background:var(--moss);color:#fff}
+.steps button.no{background:var(--rust);color:#fff}
+.origin{background:var(--ochre-soft);border-radius:10px;padding:9px 12px;font-size:14px;margin:0 0 10px;white-space:pre-wrap}
+.origin b{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#6E4E14;display:block;margin-bottom:2px}
+.fchips{display:flex;gap:5px;flex-wrap:wrap}
+.fchip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--stone2);color:var(--mute)}
+.fchip.sent{background:var(--ochre-soft);color:#6E4E14}
+.fchip.done{background:var(--ok-soft);color:#2F4B29}
+.feed .fi{padding:11px 14px;border-top:1px solid var(--line);cursor:pointer}
+.feed .fi:first-child{border-top:0}
+.feed .fi:hover{background:#fff}
+.feed .fi .h{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--mute)}
+.feed .fi .h b{color:var(--ink);font-size:14px}
+.feed .fi .d{font-size:14px;margin-top:2px;white-space:pre-wrap}
+.wk{font-size:12px;font-weight:700;color:var(--moss)}
+.weekbar{height:6px;background:var(--stone2);border-radius:3px;overflow:hidden;margin-top:6px}
+.weekbar i{display:block;height:100%;background:var(--ochre)}
+.pill-type{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+@media (max-width:860px){ .steps button{padding:6px 7px;font-size:11px} }
 </style>
 </head>
 <body>
@@ -322,108 +346,109 @@ label.f>input,label.f>select,label.f>textarea{margin-top:4px;color:var(--ink);fo
 <div id="toast"></div>
 <script>
 /* =========================================================================
-   LBYD CRM  (v2, test build)
+   LBYD CRM  (v3, test build)
    One file, no build step. Read MANUAL.md for the plain-language guide.
 
-     1. SETTINGS        forms, logins, stages, tiers, messages (edit these)
-     2. STORAGE         where data lives (browser now, Supabase later: swap here only)
-     3. TEST DATA       Test 1 to Test 16 and two test events
+     1. SETTINGS        offers, forms, logins, stages, events, messages (edit these)
+     2. STORAGE         browser now, Supabase later (swap this block only)
+     3. TEST DATA       Test 1 to Test 16 and test events
      4. HELPERS
-     5. FORM SYNC       pulls live JotForm submissions through the Netlify function
+     5. SYNC            JotForm submissions and Cal.com bookings via Netlify functions
      6. ACTIONS         everything that changes a record
      7. NEXT MOVES      what each prospect needs next, and the message for it
-     8. SCREENS         Today, Pipeline, Events, Clients, Contacts, Money, Insights, Settings
+     8. SCREENS         Today, Pulse, Pipeline, Events, Clients, Contacts, Money, Insights, Settings
      9. RECORDS         contact panel, client profile, event page
     10. EVENTS          clicks and edits
    ========================================================================= */
 
 /* ---------- 1. SETTINGS ---------- */
+// Membership tiers, billed monthly. Premium price is set per client until it's fixed.
+const TIERS_PLAN = {
+  base:    {label:'Base',    price:500, includes:'Group access, weekly group calls, the 12-week course'},
+  premium: {label:'Premium', price:0,   includes:'Everything in Base, plus one-on-ones'}
+};
+const COURSES = ['12-Week Course'];   // add more as new courses launch
+const COURSE_WEEKS = 12;
+
 const FORMS = {
   application: 'https://form.jotform.com/262762618270056',
   onboarding:  'https://form.jotform.com/262763667814065'
 };
 const formId = url => String(url||'').split('?')[0].split('/').filter(Boolean).pop() || '';
-
-// Cal.com booking link for sales calls. Leave empty until it exists.
-const CAL_LINK = '';
+const CAL_LINK = '';   // Cal.com booking link for "Book the call"
 
 const ROLES = {
   noah:  {label:'Noah',  title:'Sales',          pin:'333', home:'today',
           tabs:['today','pipeline','events','contacts','money','insights','settings']},
-  brett: {label:'Brett', title:'CEO',            pin:'222', home:'today',
-          tabs:['today','money','pipeline','events','clients','contacts','insights','settings']},
+  brett: {label:'Brett', title:'CEO',            pin:'222', home:'pulse',
+          tabs:['pulse','money','events','clients','pipeline','contacts','insights','settings']},
   ryan:  {label:'Ryan',  title:'Client Success', pin:'444', home:'today',
           tabs:['today','clients','events','contacts','money','insights','settings']}
 };
-const TAB_NAMES = {today:'Today',pipeline:'Pipeline',events:'Events',clients:'Clients',contacts:'Contacts',
+const TAB_NAMES = {today:'Today',pulse:'Pulse',pipeline:'Pipeline',events:'Events',clients:'Clients',contacts:'Contacts',
                    money:'Money',insights:'Insights',settings:'Settings'};
 
 const SALES_STAGES = [
-  {id:'lead',       label:'Lead',       c:'#9AA39B'},
-  {id:'invited',    label:'Invited',    c:'#9AA39B'},
-  {id:'registered', label:'Registered', c:'#7D8F7E'},
-  {id:'attended',   label:'Attended',   c:'#7D8F7E'},
-  {id:'applied',    label:'Applied',    c:'#B9852F'},
-  {id:'call',       label:'Sales call', c:'#B9852F'},
-  {id:'sold',       label:'Sold',       c:'#4F7A45'},
-  {id:'lost',       label:'Not a fit',  c:'#A4472F'}
+  {id:'lead',     label:'Lead',             c:'#9AA39B'},
+  {id:'invited',  label:'Invited',          c:'#9AA39B'},
+  {id:'showed',   label:'Showed up',        c:'#7D8F7E'},
+  {id:'engaged',  label:'Engaged',          c:'#7D8F7E'},
+  {id:'applied',  label:'Applied',          c:'#B9852F'},
+  {id:'call',     label:'Call',             c:'#B9852F'},
+  {id:'base',     label:'Member (Base)',    c:'#4F7A45'},
+  {id:'premium',  label:'Member (Premium)', c:'#2F5A2A'},
+  {id:'lost',     label:'Not a fit',        c:'#A4472F'}
 ];
 const CS_STAGES = [
-  {id:'onb_sent',  label:'Onboarding sent'},
-  {id:'workbook',  label:'Workbook done'},
-  {id:'onb_call',  label:'Onboarding call'},
-  {id:'active',    label:'Active'},
-  {id:'at_risk',   label:'At risk'},
-  {id:'completed', label:'Completed'}
+  {id:'onb_sent',label:'Onboarding sent'}, {id:'workbook',label:'Workbook done'}, {id:'onb_call',label:'Onboarding call'},
+  {id:'active',label:'Active'}, {id:'at_risk',label:'At risk'}, {id:'completed',label:'Completed'}
 ];
 const CALL_OUTCOMES = [
-  {id:'booked',     label:'Booked'},
-  {id:'showed',     label:'Showed, deciding'},
-  {id:'no_show',    label:'No-show'},
-  {id:'closed',     label:'Closed'},
-  {id:'not_closed', label:'Not closed'},
-  {id:'cancelled',  label:'Cancelled'}
+  {id:'booked',label:'Booked'}, {id:'showed',label:'Showed, deciding'}, {id:'no_show',label:'No-show'},
+  {id:'closed',label:'Joined'}, {id:'not_closed',label:'Not yet'}, {id:'cancelled',label:'Cancelled'}
 ];
-const SOURCES = ['Instagram','In person','Event','Referral','Skool','Other'];
-const EVENT_TYPES = ['Free live session','Workshop','In person','Webinar'];
-const TAGS = {
-  note:'Note', checkin:'Check-in', win:'Win', struggle:'Struggle', objection:'Objection',
-  question:'Question', language:'Their words', faq:'FAQ'
+const SOURCES = ['Instagram / social','In person','WhatsApp','Personal connection'];
+const EVENT_TYPES = {
+  hangout:  {label:'Friday Night Hangout', invite:'invite_hangout'},
+  inperson: {label:'In-person event',      invite:'invite_inperson'},
+  workshop: {label:'Online workshop',      invite:'invite_workshop'}
 };
+const TAGS = {note:'Note', checkin:'Check-in', win:'Win', struggle:'Struggle', objection:'Objection', question:'Question', language:'Their words', faq:'FAQ'};
 const INSIGHT_TAGS = ['objection','question','struggle','language','faq','win'];
-const PLANS = {'6':{label:'6 months',price:5000}, '12':{label:'12 months',price:8000}};
 const METHODS = ['Skool / Stripe','Bank transfer','Cash','Other'];
 const TIERS = [
   {n:10,name:'Founding Ten'}, {n:50,name:'The Circle'}, {n:100,name:'The Hundred'},
   {n:250,name:'The Movement'}, {n:500,name:'The Collective'}, {n:1000,name:'The Thousand'}
 ];
-const CHECKIN_DAYS = 7;   // a client with no contact for this many days shows up as "check in"
-const COLD_DAYS = 5;      // a prospect with no activity for this many days is "going cold"
+const CHECKIN_DAYS = 7;   // client with no contact this long shows up as "check in"
+const QUIET_DAYS = 10;    // Brett's Pulse flags members quiet this long
 
 // WhatsApp messages. Client-facing: no em dashes. Tokens fill in automatically:
-// [FIRST] [ME] [LINK] [EVENT] [EVENT_DATE] [CAL] [CALL_WHEN] [MEET]
+// [FIRST] [ME] [LINK] [EVENT] [EVENT_DATE] [GROUP] [CAL] [CALL_WHEN] [MEET]
 const MSG = {
-  welcome:      {label:'Say hi',              text:"Hey [FIRST], it's [ME] from Live Before You Die. Saw you just signed up, great to have you. What are you hoping to get out of it?"},
-  event:        {label:'Send event invite',   text:"Hey [FIRST], here's the link to save your spot for Brett's free live session: [LINK]"},
-  event_nudge:  {label:'Nudge on event',      text:"Hey [FIRST], circling back on this. Here's the link to save your spot for Brett's free live session: [LINK]"},
-  event_remind: {label:'Event reminder',      text:"Hey [FIRST], quick reminder that [EVENT] is on [EVENT_DATE]. See you there!"},
-  application:  {label:'Send application',    text:"Hey [FIRST], great connecting. Here's the application for Live Before You Die. It takes about 5 minutes: [LINK]"},
-  book_call:    {label:'Book the call',       text:"Hey [FIRST], thanks for applying. The next step is a one-on-one call with me. [CAL]"},
-  call_remind:  {label:'Call reminder',       text:"Hey [FIRST], looking forward to our call [CALL_WHEN]. Here's the link to join: [MEET]"},
-  no_show:      {label:'Reschedule',          text:"Hey [FIRST], missed you on our call. No stress, want to grab another time this week?"},
-  not_closed:   {label:'Follow up',           text:"Hey [FIRST], great talking with you. Checking in on where your head's at after our call. Any questions I can answer?"},
-  onboarding:   {label:'Send onboarding',     text:"Welcome in, [FIRST]! Here's your onboarding workbook. Set aside about an hour somewhere quiet, and you can save and come back to it. Brett reads every answer before your onboarding call: [LINK]"},
-  wb_chase:     {label:'Nudge on workbook',   text:"Hey [FIRST], checking in on your onboarding workbook. Take your time with it, it's what Brett uses to prep for your call. Here's the link again: [LINK]"},
-  checkin:      {label:'Check in',            text:"Hey [FIRST], checking in. How's this week going with what we're working on?"},
-  plain:        {label:'WhatsApp',            text:""}
+  welcome:         {label:'Say hi',            text:"Hey [FIRST], it's [ME] from Live Before You Die. Great to have you. What are you hoping to get out of it?"},
+  invite_hangout:  {label:'Invite to hangout', text:"Hey [FIRST], we're having a Friday night hangout on [EVENT_DATE]. Good people, music, dancing, karaoke. Want to come through? [LINK]"},
+  invite_inperson: {label:'Invite in person',  text:"Hey [FIRST], we're getting a small group together in person on [EVENT_DATE]. It's invite only and I thought of you. Want in? [LINK]"},
+  invite_workshop: {label:'Invite to workshop',text:"Hey [FIRST], Brett is running an online workshop on [EVENT_DATE]. Want me to save you a spot? [LINK]"},
+  nudge:           {label:'Nudge',             text:"Hey [FIRST], just checking you saw this. [EVENT] is on [EVENT_DATE]. Are you in?"},
+  remind:          {label:'Reminder',          text:"Hey [FIRST], see you at [EVENT] on [EVENT_DATE]! [GROUP]"},
+  after:           {label:'Follow up',         text:"Hey [FIRST], great having you at [EVENT]. What did you take away from it?"},
+  application:     {label:'Send application',  text:"Hey [FIRST], here's the application for Live Before You Die. It takes about 5 minutes: [LINK]"},
+  book_call:       {label:'Book the call',     text:"Hey [FIRST], thanks for applying. The next step is a quick call with me. [CAL]"},
+  call_remind:     {label:'Call reminder',     text:"Hey [FIRST], looking forward to our call [CALL_WHEN]. Here's the link to join: [MEET]"},
+  rebook:          {label:'Rebook',            text:"Hey [FIRST], missed you on our call. No stress, want to grab another time this week?"},
+  not_closed:      {label:'Follow up',         text:"Hey [FIRST], great talking with you. Checking in on where your head's at. Any questions I can answer?"},
+  onboarding:      {label:'Send onboarding',   text:"Welcome in, [FIRST]! Here's your onboarding workbook. Set aside about an hour somewhere quiet, and you can save and come back to it. Brett reads every answer before your onboarding call: [LINK]"},
+  wb_chase:        {label:'Nudge on workbook', text:"Hey [FIRST], checking in on your onboarding workbook. Take your time with it, it's what Brett uses to prep for your call. Here's the link again: [LINK]"},
+  checkin:         {label:'Check in',          text:"Hey [FIRST], checking in. How's this week going with what we're working on?"},
+  plain:           {label:'WhatsApp',          text:""}
 };
 
 /* ---------- 2. STORAGE ----------
-   Every screen goes through Store. Today it keeps data in this browser. For the
-   live build only this block changes, to Supabase, where each record is its own
-   row so one person's save never overwrites another's.                        */
+   Every screen goes through Store. Today: this browser. Live build: only this
+   block changes, to Supabase, one row per record.                             */
 const Store = (() => {
-  const KEY = 'lbyd_crm_v2';
+  const KEY = 'lbyd_crm_v3';
   let db = null;
   const persist = () => { try{ localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){} };
   const up = (arr, x) => { x.updated_at = Date.now(); const i = arr.findIndex(y=>y.id===x.id); if(i<0) arr.unshift(x); else arr[i]=x; persist(); };
@@ -431,21 +456,17 @@ const Store = (() => {
     load(){
       try{ db = JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){ db = null; }
       if(!db || !db.contacts) db = seed();
-      db.tasks = db.tasks || []; db.synced = db.synced || {}; db.prefs = db.prefs || {showTest:true};
+      db.tasks = db.tasks||[]; db.synced = db.synced||{}; db.prefs = db.prefs||{showTest:true};
       persist();
     },
-    contacts(){ return db.contacts; },  events(){ return db.events; },  tasks(){ return db.tasks; },
-    getC(id){ return db.contacts.find(c=>c.id===id); },
-    getE(id){ return db.events.find(e=>e.id===id); },
-    putC(c){ up(db.contacts, c); },  putE(e){ up(db.events, e); },  putT(t){ up(db.tasks, t); },
-    isSynced(id){ return !!db.synced[id]; },  markSynced(id){ db.synced[id] = 1; },
-    get lastSync(){ return db.lastSync || null; },  set lastSync(v){ db.lastSync = v; persist(); },
-    get prefs(){ return db.prefs; },  savePrefs(){ persist(); },
-    flush(){ persist(); },
+    contacts(){ return db.contacts; }, events(){ return db.events; }, tasks(){ return db.tasks; },
+    getC(id){ return db.contacts.find(c=>c.id===id); }, getE(id){ return db.events.find(e=>e.id===id); },
+    putC(c){ up(db.contacts,c); }, putE(e){ up(db.events,e); }, putT(t){ up(db.tasks,t); },
+    isSynced(id){ return !!db.synced[id]; }, markSynced(id){ db.synced[id]=1; },
+    get lastSync(){ return db.lastSync||null; }, set lastSync(v){ db.lastSync=v; persist(); },
+    get prefs(){ return db.prefs; }, savePrefs(){ persist(); }, flush(){ persist(); },
     reset(){ const s = seed(), realC = db.contacts.filter(c=>!c.demo), realE = db.events.filter(e=>!e.demo);
-             db.contacts = [...realC, ...s.contacts];
-             db.events = [...realE, ...s.events.filter(e=>e.demo || !realE.some(r=>r.id===e.id))];
-             persist(); },
+             db.contacts = [...realC, ...s.contacts]; db.events = [...realE, ...s.events.filter(e=>e.demo || !realE.some(r=>r.id===e.id))]; persist(); },
     dump(){ return db; }
   };
 })();
@@ -453,130 +474,89 @@ const Store = (() => {
 /* ---------- 3. TEST DATA ---------- */
 const DAY = 86400000, HOUR = 3600000;
 const rid = p => p + Math.random().toString(36).slice(2,9);
+function localISO(ms){ const d = new Date(ms); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString(); }
 function blankContact(o){
   return Object.assign({
     id:rid('c'), created_at:Date.now(), updated_at:Date.now(),
-    name:'', email:'', whatsapp:'', instagram:'', location:'', source:'Instagram',
+    name:'', email:'', whatsapp:'', instagram:'', location:'', source:'Instagram / social', origin_note:'',
     gender:'', meeting_country:'', home_country:'', secondary_country:'', initial_contact:'', message_result:'',
     owner:'noah', sales_stage:'lead', cs_stage:null, serious:false, hot_button:'',
     next_action:'', next_date:'', archived:false, demo:false, from_form:false, last_contacted:null,
-    events:[], submissions:[], notes:[], payments:[], goals:[], deal:null, call:null, log:[]
+    events:[], form_sent:{}, submissions:[], notes:[], payments:[], goals:[], membership:null, call:null, log:[]
   }, o);
 }
-function localISO(ms){ const d = new Date(ms); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString(); }
 function seed(){
-  const t = Date.now(), ago = n => t - n*DAY, ahead = n => t + n*DAY, day = ms => localISO(ms).slice(0,10);
+  const t = Date.now(), ago = n => t - n*DAY, ahead = n => t + n*DAY;
+  const at = (ms, hm) => localISO(ms).slice(0,10)+'T'+hm;
+  const fri = (() => { const d = new Date(); const add = (5 - d.getDay() + 7) % 7 || 7; return d.getTime() + add*DAY; })();
   const events = [
-    {id:'e_oct7', name:'Free Live Session', type:'Free live session', date:localISO(Date.UTC(2026,9,8,1,0)).slice(0,16),
-     time_note:'9PM ET (Thursday 9AM Bali time)', location:'Online',
-     form_url:'https://form.jotform.com/262708463844061', form_id:'262708463844061', tag:'2026-10-07',
-     wa_link:'', recording:'', worked:'', didnt:'', notes:'', demo:false, created_at:t},
-    {id:'e_test_past', name:'Test Event: September Workshop', type:'Workshop', date:day(ago(12))+'T19:00',
-     time_note:'', location:'Canggu', form_url:'', form_id:'', tag:'', wa_link:'https://chat.whatsapp.com/example',
-     recording:'https://example.com/recording', worked:'Breathwork segment landed. Strong Q&A.',
-     didnt:'Started 15 minutes late. Too long before the offer.', notes:'Test event for the demo.', demo:true, created_at:ago(30)},
-    {id:'e_test_next', name:'Test Event: Kelowna Meetup', type:'In person', date:day(ahead(16))+'T18:30',
-     time_note:'', location:'Kelowna', form_url:'', form_id:'', tag:'', wa_link:'', recording:'',
-     worked:'', didnt:'', notes:'', demo:true, created_at:ago(5)}
+    {id:'e_oct7', name:'Free Live Session', type:'workshop', date:localISO(Date.UTC(2026,9,8,1,0)).slice(0,16), time_note:'9PM ET (Thursday 9AM Bali time)', location:'Online',
+     form_url:'https://form.jotform.com/262708463844061', form_id:'262708463844061', tag:'2026-10-07', wa_link:'', recording:'', worked:'', didnt:'', notes:'', demo:false, created_at:t},
+    {id:'e_t_hang_past', name:'Test: Friday Night Hangout', type:'hangout', date:at(fri-7*DAY,'19:30'), time_note:'', location:'Canggu', form_url:'', form_id:'', tag:'',
+     wa_link:'https://chat.whatsapp.com/example', recording:'', worked:'Karaoke got everyone talking. Big energy.', didnt:'Too loud for real conversations late.', notes:'', demo:true, created_at:ago(14)},
+    {id:'e_t_hang_next', name:'Test: Friday Night Hangout', type:'hangout', date:at(fri,'19:30'), time_note:'', location:'Canggu', form_url:'', form_id:'', tag:'',
+     wa_link:'https://chat.whatsapp.com/example2', recording:'', worked:'', didnt:'', notes:'', demo:true, created_at:ago(7)},
+    {id:'e_t_inperson', name:'Test: Founders Dinner', type:'inperson', date:at(ahead(9),'18:30'), time_note:'', location:'Ubud', form_url:'', form_id:'', tag:'',
+     wa_link:'', recording:'', worked:'', didnt:'', notes:'Invite only. Good fits.', demo:true, created_at:ago(3)},
+    {id:'e_t_workshop', name:'Test: Online Workshop', type:'workshop', date:at(ago(4),'20:00'), time_note:'', location:'Online', form_url:'', form_id:'', tag:'',
+     wa_link:'', recording:'https://example.com/recording', worked:'Clear framework, good Q&A.', didnt:'Ran 20 minutes over.', notes:'', demo:true, created_at:ago(20)}
   ];
-  const evAns = (area, ready, budget) => [
-    ['Which area do you most want to change right now?', area],
-    ['If the right program came along, are you in a position to invest in yourself in the next 30 days?', ready],
-    ...(budget ? [['How much are you able to invest in yourself?', budget]] : [])];
-  const ev = (at, eid, area, ready, budget) => ({type:'event', at, event_id:eid, key:{ready,budget}, answers:evAns(area,ready,budget)});
-  const app = (at,o) => ({type:'application', at, key:{ready:o.ready, budget:o.budget, commitment:String(o.commit)}, answers:[
-    ['Where are you based right now?', o.based],
-    ['What do you do right now for work or business?', o.work],
-    ['What is your current monthly income?', o.income],
-    ['What areas of your life are you most interested in improving?', o.areas],
-    ['What are you struggling with most in those areas right now?', o.struggle],
-    ['What made you want to apply?', o.why],
-    ['What would a big win look like for you 12 months from now?', o.win],
+  const rec = (id, inv, rsvp, showed, part) => ({id, invited_at:ago(inv), rsvp_at:rsvp?ago(inv-1):null, showed:showed===undefined?null:showed, participated:!!part});
+  const app = (a,o) => ({type:'application', at:a, key:{ready:o.ready, budget:o.budget, commitment:String(o.commit)}, answers:[
+    ['Where are you based right now?', o.based], ['What do you do right now for work or business?', o.work],
+    ['What areas of your life are you most interested in improving?', o.areas], ['What are you struggling with most in those areas right now?', o.struggle],
+    ['What made you want to apply?', o.why], ['What would a big win look like for you 12 months from now?', o.win],
     ['On a scale of 1 to 10, how committed are you to making this change?', String(o.commit)],
-    ["If you're accepted, are you in a position to invest in yourself in the next 30 days?", o.ready],
-    ...(o.budget ? [['How much are you able to invest in yourself?', o.budget]] : []),
-    ['Is anyone else involved in this decision, like a partner or family member?', o.decision]]});
-  const wb = (at, build, why) => ({type:'onboarding', at, key:{}, answers:[
-    ['What do you do right now, and what does a normal week look like?', 'Test answer. Runs a small coaching practice, 50 hours a week, mostly delivery.'],
+    ["If you're accepted, are you in a position to invest in yourself in the next 30 days?", o.ready]]});
+  const wb = (a, build, why) => ({type:'onboarding', at:a, key:{}, answers:[
     ['Rate each area of your life right now from 1 to 10.', 'Money and career: 5, Relationships and love: 6, Health and energy: 4, Purpose and fulfilment: 7, Friendships and community: 5'],
-    ["If money wasn't an issue, what would you BUILD?", build],
-    ['What would you EXPERIENCE?', 'Test answer. Surf mornings, slow lunches, deep work in the afternoon, travel with my partner.'],
-    ['Who would you BECOME?', 'Test answer. Calm, certain, someone people trust to lead.'],
-    ['Why does this vision matter to you?', why],
-    ['What is the gap between where you are today and your vision?', 'Test answer. No clear offer, no audience, too much time on low-value work.'],
+    ["If money wasn't an issue, what would you BUILD?", build], ['What would you EXPERIENCE?', 'Test answer. Surf mornings, slow lunches, deep work in the afternoon.'],
+    ['Who would you BECOME?', 'Test answer. Calm, certain, someone people trust to lead.'], ['Why does this vision matter to you?', why],
+    ['What is the gap between where you are today and your vision?', 'Test answer. No clear offer, too much time on low-value work.'],
     ['Belief: What beliefs about yourself, money, or relationships have held you back?', "Test answer. That charging more means I'm greedy."],
-    ['What are the 2 most negative emotions you feel most often?', 'Test answer. Anxiety and guilt.'],
-    ['Write your absolute dream day', 'Test answer. I wake at 6 without an alarm, surf, then coach two clients from the villa...'],
     ['How do you like to be held accountable?', "Direct and blunt, don't let me off the hook"]]});
-  const note = (at,by,tag,body) => ({id:rid('n'), at, by, tag, body});
-  const pay = (at,amount,method) => ({id:rid('p'), at, amount, method});
+  const note = (a,by,tag,body) => ({id:rid('n'), at:a, by, tag, body});
+  const pay = (a,amount,method) => ({id:rid('p'), at:a, amount, method});
   const goal = (text,done) => ({id:rid('g'), text, done:!!done, at:ago(5)});
+  const mem = (tier, startDaysAgo, price) => ({tier, price:price||TIERS_PLAN[tier].price, start:ago(startDaysAgo), course:COURSES[0], status:'active', cancelled_at:null});
   const C = (i,o) => blankContact(Object.assign({
-    id:'c'+i, name:'Test '+i, email:'test'+i+'@example.com', demo:true,
-    whatsapp:'628120000'+String(1000+i), instagram:'test.'+i, location:'Bali',
-    gender: i%2 ? 'Male' : 'Female', meeting_country:'Bali', home_country: i%3===0 ? 'Canada' : 'Australia',
-    created_at:ago(o.age||10), updated_at:ago(o.idle||1),
-    log:[{at:ago(o.age||10), by:'Noah', body:'Test contact created'}]
-  }, o));
+    id:'c'+i, name:'Test '+i, email:'test'+i+'@example.com', demo:true, whatsapp:'628120000'+String(1000+i), instagram:'test.'+i,
+    location: i%3===0 ? 'Kelowna, Canada' : 'Canggu, Bali', created_at:ago(o.age||10), updated_at:ago(o.idle||1),
+    log:[{at:ago(o.age||10), by:'Noah', body:'Test contact created'}]}, o));
   const contacts = [
-    C(1,{age:2, idle:2, sales_stage:'lead', hot_button:'Wants out of corporate', next_action:'Send event invite', next_date:day(t)}),
-    C(2,{age:9, idle:6, sales_stage:'invited', last_contacted:ago(6)}),
-    C(3,{age:3, idle:2, sales_stage:'invited', owner:'brett', initial_contact:day(ago(3)), message_result:'Seen, no reply', last_contacted:ago(2)}),
-    C(4,{age:5, idle:3, sales_stage:'registered', events:[{id:'e_test_next', at:ago(3), attended:null}],
-        submissions:[ev(ago(3),'e_test_next','Money and career','Maybe, depends on the fit','$2,500 to $5,000')], last_contacted:ago(3)}),
-    C(5,{age:6, idle:1, sales_stage:'registered', serious:true, hot_button:'Grow income from fitness biz', events:[{id:'e_test_next', at:ago(4), attended:null}],
-        submissions:[ev(ago(4),'e_test_next','Honestly, all of it','Yes','$5,000 to $10,000')],
-        notes:[note(ago(1),'Noah','language','Keeps saying he wants to "stop trading hours for money"')], last_contacted:ago(1)}),
-    C(6,{age:0.02, idle:0.02, sales_stage:'registered', source:'Event', from_form:true, location:'Canada', events:[{id:'e_test_next', at:t-25*60000, attended:null}],
-        submissions:[ev(t-25*60000,'e_test_next','Relationships and the people around me','Not right now','')]}),
-    C(7,{age:20, idle:5, sales_stage:'attended', source:'Event', events:[{id:'e_test_past', at:ago(14), attended:true}], last_contacted:ago(5)}),
-    C(8,{age:14, idle:1, sales_stage:'call', serious:true, hot_button:'Confidence for love and business',
-        events:[{id:'e_test_past', at:ago(15), attended:true}], last_contacted:ago(1),
-        call:{at:t+20*HOUR, meet:'https://meet.google.com/abc-defg-hij', outcome:'booked'},
-        submissions:[app(ago(2),{based:'Canggu, Bali', work:'Personal trainer, 1:1 clients', income:'$5,000 to $10,000',
-          areas:'Money and career, Mindset, confidence, and identity', struggle:'Capped at 1:1 hours and burning out. Know I should go online but keep stalling.',
-          why:'Came to the September workshop. The breathwork part hit hard.', win:'Online program running, working 4 days a week, $15K months.',
-          commit:9, ready:'Yes', budget:'$5,000 to $10,000', decision:"No, it's my decision"})],
-        notes:[note(ago(1),'Noah','struggle','Burnt out on 1:1 training, 60-hour weeks'),
-               note(ago(1),'Noah','question','Asked whether the weekly calls are recorded')]}),
-    C(9,{age:12, idle:2, sales_stage:'applied', location:'Australia', events:[{id:'e_test_past', at:ago(15), attended:true}], last_contacted:ago(3),
-        submissions:[app(ago(2),{based:'Melbourne', work:'Marketing coordinator', income:'$2,000 to $5,000',
-          areas:'Purpose and fulfilment, Relationships and love', struggle:'Feel stuck in a job that pays fine but means nothing.',
-          why:'Friend recommended Brett.', win:'A clear direction and a side business making its first $2K.',
-          commit:7, ready:'Maybe, depends on the fit', budget:'$1,000 to $2,500', decision:"Yes, I'd want to talk it through with them"})]}),
-    C(10,{age:18, idle:1, sales_stage:'call', next_action:'Answer the payment plan question', next_date:day(t), last_contacted:ago(1),
-        events:[{id:'e_test_past', at:ago(15), attended:true}],
-        call:{at:ago(1), meet:'https://meet.google.com/klm-nopq-rst', outcome:'not_closed'},
-        submissions:[app(ago(4),{based:'Ubud', work:'Yoga teacher', income:'$2,000 to $5,000', areas:'Money and career',
-          struggle:'Teaching six classes a day and still not saving.', why:'Saw Brett speak in Ubud.', win:'Retreat business running.',
-          commit:8, ready:'Yes', budget:'$5,000 to $10,000', decision:"No, it's my decision"})],
-        notes:[note(ago(1),'Noah','objection','Wants in but worried about paying $5K upfront'), note(ago(1),'Noah','faq','Is there a payment plan?')]}),
-    C(11,{age:40, idle:9, sales_stage:'sold', cs_stage:'active', location:'Canada', last_contacted:ago(9),
-        events:[{id:'e_test_past', at:ago(35), attended:true}],
-        deal:{plan:'12', price:8000, pay:'full', at:ago(25)}, payments:[pay(ago(25),8000,'Skool / Stripe')], onb_sent_at:ago(24),
-        call:{at:ago(26), meet:'', outcome:'closed'},
-        submissions:[wb(ago(22),'Test answer. A retreat business in Bali running four retreats a year.','Test answer. Freedom. Then: proving I can. Then: showing my kids it is possible.')],
-        goals:[goal('Launch first retreat offer'), goal('Post 3x a week on IG', true), goal('Morning routine 5 days a week')],
-        notes:[note(ago(20),'Brett','checkin','Onboarding call done. Huge clarity on the retreat idea. Fear is pricing.'),
-               note(ago(12),'Ryan','win','Sold first two retreat spots at full price'),
-               note(ago(9),'Ryan','checkin','Bit flat this week. Travelling, routine slipped.')]}),
-    C(12,{age:26, idle:2, sales_stage:'sold', cs_stage:'onb_call', deal:{plan:'6', price:5000, pay:'plan', at:ago(20)}, last_contacted:ago(2),
-        payments:[pay(ago(20),2500,'Skool / Stripe')], onb_sent_at:ago(19),
-        submissions:[wb(ago(6),'Test answer. An online fitness program for new mums.','Test answer. My own recovery after kids.')],
-        goals:[goal('Define the offer')],
-        notes:[note(ago(6),'Ryan','struggle','Partner is skeptical of the program, wants to show quick wins')]}),
-    C(13,{age:16, idle:1, sales_stage:'sold', cs_stage:'workbook', deal:{plan:'6', price:5000, pay:'full', at:ago(9)}, last_contacted:ago(1),
-        payments:[pay(ago(9),5000,'Bank transfer')], onb_sent_at:ago(8),
-        submissions:[wb(ago(1),'Test answer. A men\'s coaching circle in Canggu.','Test answer. I needed this ten years ago.')]}),
-    C(14,{age:10, idle:4, sales_stage:'sold', cs_stage:'onb_sent', deal:{plan:'12', price:8000, pay:'plan', at:ago(4)}, last_contacted:ago(4),
-        payments:[pay(ago(4),2000,'Skool / Stripe')], onb_sent_at:ago(4)}),
-    C(15,{age:22, idle:8, sales_stage:'lost', notes:[note(ago(8),'Noah','objection','"Not the right time money-wise." Revisit in January.')]}),
-    C(16,{age:1, idle:1, sales_stage:'lead', source:'In person', location:'Canada', hot_button:"Met at the Kelowna men's event"})
+    C(1,{age:1, sales_stage:'lead', source:'In person', origin_note:'Met at the café in Pererenan. He coaches surfers, we talked about the swell and building online.', next_action:'Invite to Friday hangout', next_date:localISO(t).slice(0,10)}),
+    C(2,{age:6, idle:3, sales_stage:'invited', source:'Instagram / social', origin_note:'Replied to Brett\'s reel about purpose and money.', events:[rec('e_t_hang_next',3)], form_sent:{}, last_contacted:ago(3)}),
+    C(3,{age:4, sales_stage:'invited', source:'WhatsApp', origin_note:'Friend of Test 11, added to the WhatsApp community.', events:[rec('e_t_hang_next',2,true)], last_contacted:ago(2)}),
+    C(4,{age:9, sales_stage:'showed', source:'In person', origin_note:'Met at the gym. Ex-banker, building a wellness brand.', events:[rec('e_t_hang_past',9,true,true)], last_contacted:ago(8)}),
+    C(5,{age:12, sales_stage:'engaged', serious:true, source:'Personal connection', origin_note:'Brett\'s friend from Canada. Runs a fitness business, stuck at 1:1 hours.',
+        events:[rec('e_t_hang_past',10,true,true,true), rec('e_t_workshop',6,true,true,true), rec('e_t_inperson',1)], hot_button:'Grow income from fitness biz', last_contacted:ago(1),
+        notes:[note(ago(1),'Noah','language','Keeps saying he wants to "stop trading hours for money"')]}),
+    C(6,{age:0.03, idle:0.03, sales_stage:'invited', source:'Instagram / social', from_form:true, events:[{id:'e_t_hang_next', invited_at:t-40*60000, rsvp_at:t-40*60000, showed:null, participated:false}]}),
+    C(7,{age:14, idle:4, sales_stage:'engaged', source:'Instagram / social', origin_note:'DM after the workshop reel.', events:[rec('e_t_workshop',8,true,true,true)], last_contacted:ago(4)}),
+    C(8,{age:15, sales_stage:'call', serious:true, source:'In person', origin_note:'Met at the hangout. Personal trainer, wants to go online.', events:[rec('e_t_hang_past',11,true,true,true)],
+        call:{at:t+20*HOUR, meet:'https://meet.google.com/abc-defg-hij', outcome:'booked'}, form_sent:{application:ago(4)}, last_contacted:ago(1),
+        submissions:[app(ago(3),{based:'Canggu', work:'Personal trainer', areas:'Money and career', struggle:'Capped at 1:1 hours and burning out.', why:'The hangout and the workshop.', win:'Online program running, 4-day weeks.', commit:9, ready:'Yes', budget:''})],
+        notes:[note(ago(1),'Noah','question','Asked whether the group calls are recorded')]}),
+    C(9,{age:10, sales_stage:'applied', location:'Melbourne, Australia', source:'Instagram / social', origin_note:'Found Brett on IG.', form_sent:{application:ago(5)}, last_contacted:ago(3),
+        submissions:[app(ago(2),{based:'Melbourne', work:'Marketing coordinator', areas:'Purpose and fulfilment', struggle:'Stuck in a job that pays fine but means nothing.', why:'Friend recommended Brett.', win:'A clear direction and a side business.', commit:7, ready:'Maybe, depends on the fit'})]}),
+    C(10,{age:18, sales_stage:'call', source:'Personal connection', origin_note:'Noah\'s friend from Winnipeg.', call:{at:ago(1), meet:'', outcome:'not_closed'}, last_contacted:ago(1),
+        notes:[note(ago(1),'Noah','objection','Likes it, wants to start after his trip next month')]}),
+    C(11,{age:60, idle:11, sales_stage:'premium', cs_stage:'active', source:'In person', origin_note:'Met at a Bali coworking event.', membership:mem('premium',55,1500), last_contacted:ago(11),
+        payments:[pay(ago(55),1500,'Skool / Stripe'), pay(ago(25),1500,'Skool / Stripe')], onb_sent_at:ago(54), submissions:[wb(ago(52),'Test answer. A retreat business in Bali.','Test answer. Freedom, and showing my kids it is possible.')],
+        goals:[goal('Launch first retreat offer'), goal('Post 3x a week on IG', true)],
+        notes:[note(ago(20),'Brett','checkin','One-on-one: huge clarity on the retreat idea. Fear is pricing.'), note(ago(12),'Ryan','win','Sold first two retreat spots at full price'), note(ago(11),'Ryan','checkin','Travelling this week, routine slipped.')]}),
+    C(12,{age:30, idle:2, sales_stage:'base', cs_stage:'onb_call', source:'Instagram / social', origin_note:'Came to two hangouts first.', membership:mem('base',21), last_contacted:ago(2),
+        payments:[pay(ago(21),500,'Skool / Stripe')], onb_sent_at:ago(20), submissions:[wb(ago(6),'Test answer. An online program for new mums.','Test answer. My own recovery after kids.')],
+        notes:[note(ago(6),'Ryan','struggle','Partner is skeptical, wants quick wins')]}),
+    C(13,{age:14, idle:1, sales_stage:'base', cs_stage:'workbook', source:'WhatsApp', origin_note:'From the WhatsApp community.', membership:mem('base',8), last_contacted:ago(1),
+        payments:[pay(ago(8),500,'Bank transfer')], onb_sent_at:ago(7), submissions:[wb(ago(1),'Test answer. A men\'s circle in Canggu.','Test answer. I needed this ten years ago.')],
+        notes:[note(ago(1),'Ryan','win','Finished the workbook in one sitting, fired up')]}),
+    C(14,{age:6, idle:3, sales_stage:'base', cs_stage:'onb_sent', source:'In person', origin_note:'Met at the founders dinner.', membership:mem('base',3), last_contacted:ago(3),
+        payments:[pay(ago(3),500,'Skool / Stripe')], onb_sent_at:ago(3)}),
+    C(15,{age:22, idle:8, sales_stage:'lost', source:'Instagram / social', notes:[note(ago(8),'Noah','objection','"Not the right time money-wise." Revisit in January.')]}),
+    C(16,{age:2, sales_stage:'lead', source:'Personal connection', origin_note:"Met at the Kelowna men's event. Coach, loves surfing.", location:'Kelowna, Canada'})
   ];
-  const tasks = [
-    {id:rid('t'), text:'Set up the Cal.com booking page', done:false, by:'Noah', at:ago(1), due:''},
-    {id:rid('t'), text:'Add the WhatsApp group link to the Oct 7 event', done:false, by:'Noah', at:ago(1), due:day(t)}
-  ];
+  const tasks = [{id:rid('t'), text:'Add this Friday\'s hangout with its WhatsApp group link', done:false, by:'Noah', at:ago(1), due:localISO(t).slice(0,10)}];
   return {contacts, events, tasks, synced:{}, prefs:{showTest:true}, lastSync:null};
 }
 
@@ -587,13 +567,16 @@ const money = n => '$' + Math.round(Number(n)||0).toLocaleString('en-US');
 const fmtDate = ms => ms ? new Date(ms).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
 const fmtWhen = ms => ms ? new Date(ms).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
 const evMs = e => e && e.date ? new Date(e.date).getTime() : 0;
+const evWhen = e => e ? new Date(e.date).toLocaleString('en-US',{weekday:'long',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
 const todayStr = () => localISO(Date.now()).slice(0,10);
 const startToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
+const monthStart = () => { const d=new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.getTime(); };
+const weekAgo = () => Date.now()-7*DAY;
 const daysSince = ms => Math.floor((Date.now()-ms)/DAY);
 const ago = ms => { if(!ms) return 'never'; const m = Math.floor((Date.now()-ms)/60000);
   if(m<1) return 'just now'; if(m<60) return m+'m ago'; const h=Math.floor(m/60); if(h<24) return h+'h ago';
   const d=Math.floor(h/24); return d===1?'yesterday':d+' days ago'; };
-const until = ms => { const d = ms - Date.now(); if(d<0) return 'started'; const h=Math.floor(d/HOUR); if(h<24) return 'in '+h+'h'; const dd=Math.ceil(d/DAY); return 'in '+dd+' day'+(dd>1?'s':''); };
+const until = ms => { const d = ms - Date.now(); if(d<0) return 'happening now'; const h=Math.floor(d/HOUR); if(h<24) return 'in '+h+'h'; const dd=Math.ceil(d/DAY); return 'in '+dd+' day'+(dd>1?'s':''); };
 const first = n => String(n||'').trim().split(/\s+/)[0] || 'there';
 const stage = id => SALES_STAGES.find(s=>s.id===id) || SALES_STAGES[0];
 const sIdx = id => id==='lost' ? -1 : SALES_STAGES.findIndex(s=>s.id===id);
@@ -608,64 +591,87 @@ const liveEvents = () => Store.events().filter(e => showTest() || !e.demo);
 const normPhone = v => String(v||'').replace(/\D/g,'');
 const normIG = v => String(v||'').trim().toLowerCase().replace(/^@/,'').replace(/^https?:\/\/(www\.)?instagram\.com\//,'').replace(/[\/\s]/g,'');
 const normEmail = v => String(v||'').trim().toLowerCase();
+const evType = e => EVENT_TYPES[e && e.type] || EVENT_TYPES.hangout;
 
-// One person, one record. Order: CRM ID (from our links), email, full phone, Instagram.
+// Membership
+const isMember = c => !!(c.membership && c.membership.status==='active');
+const members = () => live().filter(isMember);
+const tierOf = c => c.membership ? c.membership.tier : null;
+const courseWeek = c => c.membership ? Math.min(COURSE_WEEKS, Math.max(1, Math.floor((Date.now()-c.membership.start)/(7*DAY))+1)) : 0;
+const paidThisMonth = c => c.payments.some(p=>p.at>=monthStart());
+const totalPaid = c => c.payments.reduce((a,p)=>a+(Number(p.amount)||0),0);
+const mrr = () => members().reduce((a,c)=>a+(Number(c.membership.price)||0),0);
+
 function findMatch(f, exceptId){
   const e = normEmail(f.email), p = normPhone(f.whatsapp), i = normIG(f.instagram);
-  return Store.contacts().find(c => c.id!==exceptId && (
-    (e && normEmail(c.email)===e) || (p.length>=8 && normPhone(c.whatsapp)===p) || (i && normIG(c.instagram)===i)));
+  return Store.contacts().find(c => c.id!==exceptId && ((e && normEmail(c.email)===e) || (p.length>=8 && normPhone(c.whatsapp)===p) || (i && normIG(c.instagram)===i)));
 }
 function latestKey(c,k){ for(const s of [...c.submissions].sort((a,b)=>b.at-a.at)) if(s.key && s.key[k]) return s.key[k]; return ''; }
 function answer(c, type, re){
-  for(const s of [...c.submissions].filter(x=>!type||x.type===type).sort((a,b)=>b.at-a.at)){
-    const hit = s.answers.find(([q])=>re.test(q)); if(hit && hit[1]) return hit[1];
-  } return '';
+  for(const s of [...c.submissions].filter(x=>!type||x.type===type).sort((a,b)=>b.at-a.at)){ const hit = s.answers.find(([q])=>re.test(q)); if(hit && hit[1]) return hit[1]; }
+  return '';
 }
-const paid = c => c.payments.reduce((a,p)=>a+(Number(p.amount)||0),0);
-const owed = c => c.deal ? Math.max(0, c.deal.price - paid(c)) : 0;
-const qualified = c => latestKey(c,'ready')==='Yes' && /5,000 to|10,000\+/.test(latestKey(c,'budget'));
 const hasSub = (c,t) => c.submissions.some(s=>s.type===t);
-const nextEvent = () => liveEvents().filter(e=>evMs(e) > Date.now()-3*HOUR).sort((a,b)=>evMs(a)-evMs(b))[0];
-const eventPeople = e => live().filter(c=>c.events.some(x=>x.id===e.id));
-const evWhen = e => e ? new Date(e.date).toLocaleString('en-US',{weekday:'long',month:'long',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
-function contactEvent(c){ const ids = c.events.map(x=>x.id); return liveEvents().filter(e=>ids.includes(e.id)).sort((a,b)=>evMs(b)-evMs(a))[0]; }
+const qualified = c => latestKey(c,'ready')==='Yes';
+
+// Events and attendance
+const upcoming = () => liveEvents().filter(e=>evMs(e) > Date.now()-3*HOUR).sort((a,b)=>evMs(a)-evMs(b));
+const nextEvent = type => upcoming().find(e=>!type || e.type===type);
+const recOf = (c, eid) => c.events.find(x=>x.id===eid);
+const eventPeople = e => live().filter(c=>recOf(c,e.id));
+function contactNextEvent(c){ const ids = c.events.map(x=>x.id); return upcoming().find(e=>ids.includes(e.id)); }
+function contactLastEvent(c){ const ids = c.events.map(x=>x.id); return liveEvents().filter(e=>ids.includes(e.id) && evMs(e)<=Date.now()).sort((a,b)=>evMs(b)-evMs(a))[0]; }
+function evStats(e){
+  const p = eventPeople(e), r = c => recOf(c,e.id);
+  const joined = p.filter(c=>isMember(c) && c.membership.start >= evMs(e) - DAY);
+  return {inv:p.length, rsvp:p.filter(c=>r(c).rsvp_at).length, showed:p.filter(c=>r(c).showed===true).length,
+          part:p.filter(c=>r(c).participated).length, joined:joined.length, mrr:joined.reduce((a,c)=>a+Number(c.membership.price||0),0)};
+}
+
+// Form standing: not sent, sent, submitted
+function formState(c, type){
+  if(type==='event'){ if(c.events.some(x=>x.rsvp_at)) return 'done'; return c.events.length ? 'sent' : ''; }
+  if(hasSub(c,type)) return 'done';
+  return c.form_sent && c.form_sent[type] ? 'sent' : '';
+}
+function formChips(c){
+  const lab = {event:'Event', application:'Application', onboarding:'Onboarding'};
+  return `<span class="fchips">${['event','application','onboarding'].map(t=>{ const s = formState(c,t);
+    return `<span class="fchip ${s}" title="${s==='done'?'Submitted':s==='sent'?'Sent, not submitted':'Not sent'}">${lab[t]}: ${s==='done'?'In':s==='sent'?'Sent':'Not sent'}</span>`; }).join('')}</span>`;
+}
 
 function formLink(type, c, ev){
-  const parts = String(c.name||'').trim().split(/\s+/);
-  const base = type==='event' ? ((ev && ev.form_url) || (nextEvent()||{}).form_url || '') : FORMS[type];
+  const base = type==='event' ? ((ev && (ev.form_url||ev.wa_link)) || '') : FORMS[type];
   if(!base) return '';
-  const q = new URLSearchParams();
+  if(type==='event' && !ev.form_url) return base;   // WhatsApp group link, no form
+  const parts = String(c.name||'').trim().split(/\s+/), q = new URLSearchParams();
   if(type!=='event'){ q.set('crm_id', c.id); q.set('source','crm'); }
   if(c.email) q.set('email', c.email);
   if(parts[0]) q.set('full_name[first]', parts[0]);
   if(parts.length>1) q.set('full_name[last]', parts.slice(1).join(' '));
   return base + '?' + q.toString();
 }
-function fillMsg(key, c){
-  const ev = contactEvent(c) && evMs(contactEvent(c)) > Date.now() ? contactEvent(c) : nextEvent();
-  const linkType = {event:'event',event_nudge:'event',application:'application',onboarding:'onboarding',wb_chase:'onboarding'}[key];
+function fillMsg(key, c, ev){
+  ev = ev || contactNextEvent(c) || contactLastEvent(c) || nextEvent('hangout') || nextEvent();
+  const linkType = {invite_hangout:'event',invite_inperson:'event',invite_workshop:'event',application:'application',onboarding:'onboarding',wb_chase:'onboarding'}[key];
   return MSG[key].text
     .replace('[FIRST]', first(c.name)).replace('[ME]', who())
     .replace('[LINK]', linkType ? formLink(linkType, c, ev) : '')
-    .replace('[EVENT]', ev ? ev.name : 'the session').replace('[EVENT_DATE]', ev ? evWhen(ev) : 'soon')
-    .replace('[CAL]', CAL_LINK ? 'Grab a time that works for you here: '+CAL_LINK : 'What times work for you this week?')
+    .replace('[EVENT]', ev ? evType(ev).label : 'the session').replace('[EVENT_DATE]', ev ? evWhen(ev) : 'soon')
+    .replace('[GROUP]', ev && ev.wa_link ? 'Group chat: '+ev.wa_link : '')
+    .replace('[CAL]', CAL_LINK ? 'Grab a time here: '+CAL_LINK : 'What times work for you this week?')
     .replace('[CALL_WHEN]', c.call&&c.call.at ? fmtWhen(c.call.at) : 'soon')
-    .replace('[MEET]', c.call&&c.call.meet ? c.call.meet : '');
+    .replace('[MEET]', c.call&&c.call.meet ? c.call.meet : '').trim();
 }
 const waUrl = (phone, text) => 'https://wa.me/' + normPhone(phone) + (text ? '?text=' + encodeURIComponent(text) : '');
 function toast(m){ const t=$('#toast'); t.innerHTML='<div class="toast">'+esc(m)+'</div>'; clearTimeout(toast.t); toast.t=setTimeout(()=>t.innerHTML='',2600); }
 async function copy(text){ if(!text){ toast('No link set for this yet'); return; } try{ await navigator.clipboard.writeText(text); toast('Link copied'); }catch(e){ prompt('Copy this link:', text); } }
 
-/* ---------- 5. FORM SYNC ----------
-   The Netlify function /.netlify/functions/jotform-sync reads submissions straight
-   from JotForm (API key lives in Netlify, never in this file). Each submission is
-   merged once per browser, matched to the right person, and kept in full.     */
-const SYNC = {state:'idle', msg:'', at:null};
-function syncFormIds(){
-  return [...new Set([formId(FORMS.application), formId(FORMS.onboarding), ...Store.events().filter(e=>!e.demo).map(e=>e.form_id)].filter(Boolean))];
-}
-async function syncForms(manual){
-  if(location.protocol==='file:'){ SYNC.state='off'; SYNC.msg='Form sync starts once the site is on Netlify'; if(manual) toast(SYNC.msg); paintSync(); return; }
+/* ---------- 5. SYNC ---------- */
+const SYNC = {state:'idle', msg:''};
+function syncFormIds(){ return [...new Set([formId(FORMS.application), formId(FORMS.onboarding), ...Store.events().filter(e=>!e.demo).map(e=>e.form_id)].filter(Boolean))]; }
+async function syncAll(manual){
+  if(location.protocol==='file:'){ SYNC.state='off'; SYNC.msg='Sync starts once the site is on Netlify'; if(manual) toast(SYNC.msg); paintSync(); return; }
   SYNC.state='busy'; paintSync();
   try{
     const r = await fetch('/.netlify/functions/jotform-sync?forms='+syncFormIds().join(','), {headers:{'x-crm-pin':ROLES[S.role].pin}, cache:'no-store'});
@@ -674,41 +680,32 @@ async function syncForms(manual){
     let added=0, updated=0;
     for(const sub of j.submissions.sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)))){
       if(Store.isSynced(sub.id)) continue;
-      const res = mergeSubmission(sub);
-      Store.markSynced(sub.id);
+      const res = mergeSubmission(sub); Store.markSynced(sub.id);
       if(res==='new') added++; else if(res==='updated') updated++;
     }
     const cal = await syncCal();
     Store.lastSync = Date.now(); Store.flush();
     const warns = [...(j.errors||[]).map(e=>'Form '+e.form+': '+e.error), ...(cal.error?['Cal.com: '+cal.error]:[])];
-    SYNC.state = warns.length ? 'warn' : 'ok';
-    SYNC.msg = warns.join(' · ');
+    SYNC.state = warns.length ? 'warn' : 'ok'; SYNC.msg = warns.join(' · ');
     render();
     const parts = [];
     if(added||updated) parts.push(added+' new, '+updated+' updated from forms');
     if(cal.changed) parts.push(cal.changed+' call'+(cal.changed>1?'s':'')+' from Cal.com');
-    if(parts.length) toast(parts.join(' · '));
-    else if(manual) toast(warns.length ? warns[0] : 'Everything is up to date');
+    if(parts.length) toast(parts.join(' · ')); else if(manual) toast(warns.length ? warns[0] : 'Everything is up to date');
   }catch(e){ SYNC.state='err'; SYNC.msg=e.message; paintSync(); if(manual) toast(e.message); }
 }
-// Cal.com: reads bookings through /.netlify/functions/cal-sync. Each booking attaches to
-// the person by email, then phone. A booking moves them to Sales call with the time
-// and Meet link. Cancellations and reschedules update the call. Quietly skipped until
-// CAL_API_KEY is set in Netlify.
 async function syncCal(){
   try{
     const r = await fetch('/.netlify/functions/cal-sync', {headers:{'x-crm-pin':ROLES[S.role].pin}, cache:'no-store'});
     const j = await r.json().catch(()=>({}));
-    if(r.status===404) return {changed:0};
-    if(j.notConfigured) return {changed:0};
+    if(r.status===404 || j.notConfigured) return {changed:0};
     if(!r.ok || !j.ok) return {changed:0, error:j.error||('HTTP '+r.status)};
-    let changed = 0;
-    const byPerson = new Map();
+    let changed = 0; const byPerson = new Map();
     for(const b of j.bookings){
       const a = b.attendees[0] || {};
       let c = findMatch({email:a.email, whatsapp:a.phone});
       if(!c && j.filtered && b.status!=='cancelled'){
-        c = blankContact({name:a.name||'New booking', email:a.email||'', whatsapp:a.phone||'', source:'Other', from_form:true, form_lead_at:Date.parse(b.created)||Date.now(), log:[{at:Date.now(), by:'Cal.com', body:'Booked a call through Cal.com'}]});
+        c = blankContact({name:a.name||'New booking', email:a.email||'', whatsapp:a.phone||'', source:'Instagram / social', from_form:true, log:[{at:Date.now(), by:'Cal.com', body:'Booked a call through Cal.com'}]});
         Store.putC(c);
       }
       if(!c) continue;
@@ -716,16 +713,14 @@ async function syncCal(){
       byPerson.get(c.id).list.push(b);
     }
     for(const {c, list} of byPerson.values()){
-      // current call = latest-starting booking that isn't cancelled, else the latest one
-      const live = list.filter(b=>b.status!=='cancelled' && b.status!=='rejected').sort((x,y)=>Date.parse(y.start)-Date.parse(x.start));
-      const b = live[0] || list.sort((x,y)=>Date.parse(y.start)-Date.parse(x.start))[0];
-      const at = Date.parse(b.start), cancelled = !live.length;
-      const prev = c.call || {};
+      const liveB = list.filter(b=>!['cancelled','rejected'].includes(b.status)).sort((x,y)=>Date.parse(y.start)-Date.parse(x.start));
+      const b = liveB[0] || list.sort((x,y)=>Date.parse(y.start)-Date.parse(x.start))[0];
+      const at = Date.parse(b.start), cancelled = !liveB.length, prev = c.call || {};
       if(prev.uid===b.uid && prev.at===at && (prev.outcome==='cancelled')===cancelled) continue;
-      const keepOutcome = prev.uid===b.uid && !cancelled && prev.outcome && prev.outcome!=='cancelled';
-      c.call = {uid:b.uid, at, meet:b.meetingUrl||prev.meet||'', outcome: cancelled ? 'cancelled' : keepOutcome ? prev.outcome : 'booked', via:'cal'};
-      if(!cancelled && sIdx(c.sales_stage) < sIdx('call') && c.sales_stage!=='lost') c.sales_stage = 'call';
-      c.log.unshift({at:Date.now(), by:'Cal.com', body: cancelled ? 'Call cancelled on Cal.com' : prev.uid && prev.uid!==b.uid ? 'Call rescheduled to '+fmtWhen(at) : 'Call booked for '+fmtWhen(at)});
+      const keep = prev.uid===b.uid && !cancelled && prev.outcome && prev.outcome!=='cancelled';
+      c.call = {uid:b.uid, at, meet:b.meetingUrl||prev.meet||'', outcome: cancelled?'cancelled':keep?prev.outcome:'booked', via:'cal'};
+      if(!cancelled && sIdx(c.sales_stage) < sIdx('call') && c.sales_stage!=='lost') c.sales_stage='call';
+      c.log.unshift({at:Date.now(), by:'Cal.com', body: cancelled?'Call cancelled on Cal.com': prev.uid&&prev.uid!==b.uid ? 'Call rescheduled to '+fmtWhen(at) : 'Call booked for '+fmtWhen(at)});
       Store.putC(c); changed++;
     }
     return {changed};
@@ -733,144 +728,122 @@ async function syncCal(){
 }
 function pickAns(sub, test){ const a = sub.answers.find(test); return a ? a.a : ''; }
 function mergeSubmission(sub){
-  if(Store.contacts().some(c=>c.submissions.some(s=>s.sub_id===sub.id))) return null;   // already on someone
+  if(Store.contacts().some(c=>c.submissions.some(s=>s.sub_id===sub.id))) return null;
   const fid = String(sub.form_id), at = Date.parse(String(sub.created_at).replace(' ','T')) || Date.now();
   let type = fid===formId(FORMS.application) ? 'application' : fid===formId(FORMS.onboarding) ? 'onboarding' : null, ev = null;
   if(!type){
     const evs = Store.events().filter(e=>!e.demo && e.form_id===fid);
     if(!evs.length) return null;
     const tag = pickAns(sub, a=>/^event$/i.test(a.q) || a.n==='event');
-    ev = (tag && evs.find(e=>e.tag===tag || String(e.date).startsWith(tag)))
-      || evs.filter(e=>evMs(e) >= at - 6*HOUR).sort((a,b)=>evMs(a)-evMs(b))[0]
-      || evs.sort((a,b)=>evMs(b)-evMs(a))[0];
+    ev = (tag && evs.find(e=>e.tag===tag || String(e.date).startsWith(tag))) || evs.filter(e=>evMs(e) >= at - 6*HOUR).sort((a,b)=>evMs(a)-evMs(b))[0] || evs.sort((a,b)=>evMs(b)-evMs(a))[0];
     type = 'event';
   }
   const f = {
-    crm:   pickAns(sub, a=>/^crm_?id$/i.test(a.n) || /^crm id$/i.test(a.q)),
-    name:  pickAns(sub, a=>a.t==='control_fullname' || a.n==='full_name' || /^(full )?name$/i.test(a.q)),
-    email: pickAns(sub, a=>a.t==='control_email' || /e-?mail/i.test(a.n+' '+a.q)),
-    phone: pickAns(sub, a=>a.t==='control_phone' || /whatsapp|phone/i.test(a.n+' '+a.q)),
-    ig:    pickAns(sub, a=>/instagram/i.test(a.n+' '+a.q)),
-    budget:pickAns(sub, a=>/how much are you able/i.test(a.q)),
-    ready: pickAns(sub, a=>/position to invest/i.test(a.q)),
-    commit:pickAns(sub, a=>/how committed/i.test(a.q))
+    crm:pickAns(sub,a=>/^crm_?id$/i.test(a.n)||/^crm id$/i.test(a.q)), name:pickAns(sub,a=>a.t==='control_fullname'||a.n==='full_name'||/^(full )?name$/i.test(a.q)),
+    email:pickAns(sub,a=>a.t==='control_email'||/e-?mail/i.test(a.n+' '+a.q)), phone:pickAns(sub,a=>a.t==='control_phone'||/whatsapp|phone/i.test(a.n+' '+a.q)),
+    ig:pickAns(sub,a=>/instagram/i.test(a.n+' '+a.q)), budget:pickAns(sub,a=>/how much are you able/i.test(a.q)),
+    ready:pickAns(sub,a=>/position to invest/i.test(a.q)), commit:pickAns(sub,a=>/how committed/i.test(a.q))
   };
-  let c = (f.crm && Store.getC(f.crm)) || findMatch({email:f.email, whatsapp:f.phone, instagram:f.ig});
-  let res = 'updated';
-  if(!c){
-    c = blankContact({name:f.name||'New sign-up', email:f.email, whatsapp:f.phone, instagram:normIG(f.ig),
-      source: type==='event'?'Event':'Other', from_form:true, form_lead_at:at, created_at:at, owner:'noah', log:[]});
-    res = 'new';
-  } else {
-    if(!c.email && f.email) c.email = f.email;
-    if(!c.whatsapp && f.phone) c.whatsapp = f.phone;
-    if(!c.instagram && f.ig) c.instagram = normIG(f.ig);
-    if((!c.name || c.name==='New sign-up') && f.name) c.name = f.name;
-  }
-  const hiddenQ = /^(crm id|source|event)$/i;
-  c.submissions.push({type, at, sub_id:sub.id, form_id:fid, event_id:ev?ev.id:null,
-    key:{budget:f.budget, ready:f.ready, commitment:f.commit},
-    answers: sub.answers.filter(a=>a.a && !hiddenQ.test(a.q) && !/^crm_?id$/i.test(a.n)).map(a=>[a.q, a.a])});
-  const names = {event:'Signed up for '+(ev?ev.name:'an event'), application:'Submitted the program application', onboarding:'Submitted the onboarding workbook'};
-  c.log.unshift({at, by:'Form', body:names[type]});
+  let c = (f.crm && Store.getC(f.crm)) || findMatch({email:f.email, whatsapp:f.phone, instagram:f.ig}), res = 'updated';
+  if(!c){ c = blankContact({name:f.name||'New sign-up', email:f.email, whatsapp:f.phone, instagram:normIG(f.ig), source:'Instagram / social', from_form:true, created_at:at, log:[]}); res = 'new'; }
+  else { if(!c.email&&f.email) c.email=f.email; if(!c.whatsapp&&f.phone) c.whatsapp=f.phone; if(!c.instagram&&f.ig) c.instagram=normIG(f.ig); if((!c.name||c.name==='New sign-up')&&f.name) c.name=f.name; }
+  c.submissions.push({type, at, sub_id:sub.id, form_id:fid, event_id:ev?ev.id:null, key:{budget:f.budget, ready:f.ready, commitment:f.commit},
+    answers: sub.answers.filter(a=>a.a && !/^(crm id|source|event)$/i.test(a.q) && !/^crm_?id$/i.test(a.n)).map(a=>[a.q, a.a])});
+  c.log.unshift({at, by:'Form', body: type==='event' ? 'Signed up (RSVP) for '+(ev?ev.name:'an event') : type==='application' ? 'Submitted the application' : 'Submitted the onboarding workbook'});
   if(type==='event' && ev){
-    if(!c.events.some(x=>x.id===ev.id)) c.events.push({id:ev.id, at, attended:null});
-    if(sIdx(c.sales_stage) < sIdx('registered')) c.sales_stage = 'registered';
+    let x = recOf(c, ev.id); if(!x){ x = {id:ev.id, invited_at:at, rsvp_at:null, showed:null, participated:false}; c.events.push(x); }
+    x.rsvp_at = x.rsvp_at || at;
+    if(sIdx(c.sales_stage) < sIdx('invited') && c.sales_stage!=='lost') c.sales_stage='invited';
   }
-  if(type==='application' && sIdx(c.sales_stage) < sIdx('applied')) c.sales_stage = 'applied';
-  if(type==='onboarding' && (!c.cs_stage || c.cs_stage==='onb_sent')) c.cs_stage = 'workbook';
-  Store.putC(c);
-  return res;
+  if(type==='application' && sIdx(c.sales_stage) < sIdx('applied') && c.sales_stage!=='lost') c.sales_stage='applied';
+  if(type==='onboarding' && (!c.cs_stage || c.cs_stage==='onb_sent')) c.cs_stage='workbook';
+  Store.putC(c); return res;
 }
 
 /* ---------- 6. ACTIONS ---------- */
 function logTo(c, body){ c.log.unshift({at:Date.now(), by:who(), body}); }
 function save(c, msg){ Store.putC(c); if(msg) toast(msg); }
-function setStage(c, id){
-  if(c.sales_stage===id) return;
-  logTo(c, 'Stage: '+stage(c.sales_stage).label+' to '+stage(id).label);
-  c.sales_stage = id; save(c, 'Moved to '+stage(id).label);
-}
-function setCS(c, id){
-  logTo(c, 'Client stage: '+((csStage(c.cs_stage)||{}).label||'Not sent')+' to '+csStage(id).label);
-  c.cs_stage = id; save(c, 'Moved to '+csStage(id).label);
-}
-function sendWA(c, key){
-  const text = key==='plain' ? '' : fillMsg(key, c);
-  if(MSG[key].text.includes('[LINK]') && !text.includes('http')){ toast('No form link set for this yet. Add it on the Events page.'); return; }
+function bump(c, id){ if(c.sales_stage!=='lost' && sIdx(c.sales_stage) < sIdx(id)) c.sales_stage = id; }
+function setStage(c, id){ if(c.sales_stage===id) return; logTo(c,'Stage: '+stage(c.sales_stage).label+' to '+stage(id).label); c.sales_stage=id; save(c,'Moved to '+stage(id).label); }
+function setCS(c, id){ logTo(c,'Client stage: '+((csStage(c.cs_stage)||{}).label||'Not sent')+' to '+csStage(id).label); c.cs_stage=id; save(c,'Moved to '+csStage(id).label); }
+function sendWA(c, key, ev){
+  const text = key==='plain' ? '' : fillMsg(key, c, ev);
+  if(['application','onboarding','wb_chase'].includes(key) && !text.includes('http')){ toast('No form link set for this yet.'); return; }
   window.open(waUrl(c.whatsapp, text), '_blank', 'noopener');
   c.last_contacted = Date.now();
-  logTo(c, 'WhatsApp: '+MSG[key].label);
-  if(key==='event' && c.sales_stage==='lead') c.sales_stage='invited';
+  if(['application','onboarding'].includes(key)){ c.form_sent[key] = Date.now(); }
   if(key==='onboarding' && !c.cs_stage){ c.cs_stage='onb_sent'; c.onb_sent_at=Date.now(); }
+  logTo(c, 'WhatsApp: '+MSG[key].label+(ev?' ('+ev.name+')':''));
   save(c, MSG[key].label+' opened in WhatsApp');
 }
-function closeDeal(c, plan, price, pay){
-  c.deal = {plan, price:Number(price)||PLANS[plan].price, pay, at:Date.now()};
-  if(c.call) c.call.outcome = 'closed';
-  logTo(c, 'Closed: '+PLANS[plan].label+', '+money(c.deal.price)+', '+(pay==='full'?'paid in full':'payment plan'));
-  c.sales_stage = 'sold'; save(c, 'Deal closed. Log the first payment next.');
+function inviteTo(c, ev, send){
+  if(!recOf(c, ev.id)) c.events.push({id:ev.id, invited_at:Date.now(), rsvp_at:null, showed:null, participated:false});
+  bump(c,'invited');
+  if(send) sendWA(c, evType(ev).invite, ev); else { logTo(c,'Invited to '+ev.name); save(c,'Invited'); }
 }
-function logPayment(c, amount, date, method){
-  const at = date ? new Date(date+'T12:00:00').getTime() : Date.now();
-  c.payments.unshift({id:rid('p'), at, amount:Number(amount), method});
-  logTo(c, 'Payment logged: '+money(amount)+' ('+method+')'); save(c, 'Payment logged');
-}
-function addNote(c, body, tag){
-  c.notes.unshift({id:rid('n'), at:Date.now(), by:who(), tag, body});
-  if(tag==='checkin') c.last_contacted = Date.now();
-  save(c, tag==='checkin'?'Check-in logged':'Note added');
-}
-function setAttended(c, eid, val){
-  const x = c.events.find(e=>e.id===eid); if(!x) return;
-  x.attended = x.attended===val ? null : val;
-  const ev = Store.getE(eid);
-  if(x.attended===true && sIdx(c.sales_stage) < sIdx('attended') && c.sales_stage!=='lost') c.sales_stage='attended';
-  logTo(c, (x.attended===true?'Attended ':x.attended===false?'Missed ':'Attendance cleared: ')+(ev?ev.name:'event'));
+function setStep(c, eid, step){
+  const x = recOf(c, eid); if(!x) return; const ev = Store.getE(eid), nm = ev ? ev.name : 'event';
+  if(step==='rsvp'){ x.rsvp_at = x.rsvp_at ? null : Date.now(); logTo(c, x.rsvp_at?'RSVP\'d to '+nm:'RSVP cleared: '+nm); }
+  if(step==='showed'){ x.showed = x.showed===true ? null : true; if(x.showed){ x.rsvp_at = x.rsvp_at||Date.now(); bump(c,'showed'); } else x.participated=false; logTo(c, x.showed?'Showed up: '+nm:'Attendance cleared: '+nm); }
+  if(step==='missed'){ x.showed = x.showed===false ? null : false; if(x.showed===false) x.participated=false; logTo(c, x.showed===false?'Missed: '+nm:'Attendance cleared: '+nm); }
+  if(step==='part'){ x.participated = !x.participated; if(x.participated){ x.showed=true; bump(c,'engaged'); } logTo(c, x.participated?'Participated: '+nm:'Participation cleared: '+nm); }
   save(c);
 }
+function startMembership(c, tier, price, course, start){
+  c.membership = {tier, price:Number(price)||TIERS_PLAN[tier].price, start:start?new Date(start+'T12:00').getTime():Date.now(), course, status:'active', cancelled_at:null};
+  c.sales_stage = tier; if(c.call && c.call.outcome!=='cancelled') c.call.outcome='closed';
+  logTo(c, 'Joined: '+TIERS_PLAN[tier].label+', '+money(c.membership.price)+'/month'); save(c, 'Welcome in. Log their first payment and send onboarding.');
+}
+function upgrade(c, price){
+  c.membership.tier='premium'; c.membership.price=Number(price)||c.membership.price; c.membership.upgraded_at=Date.now(); c.sales_stage='premium';
+  logTo(c, 'Upgraded to Premium, '+money(c.membership.price)+'/month'); save(c,'Upgraded to Premium');
+}
+function cancelMembership(c){ c.membership.status='cancelled'; c.membership.cancelled_at=Date.now(); logTo(c,'Cancelled membership'); save(c,'Membership cancelled'); }
+function restartMembership(c){ c.membership.status='active'; c.membership.cancelled_at=null; c.sales_stage=c.membership.tier; logTo(c,'Membership restarted'); save(c,'Membership restarted'); }
+function logPayment(c, amount, date, method){
+  const at = date ? new Date(date+'T12:00:00').getTime() : Date.now();
+  c.payments.unshift({id:rid('p'), at, amount:Number(amount), method}); logTo(c,'Payment logged: '+money(amount)+' ('+method+')'); save(c,'Payment logged');
+}
+function addNote(c, body, tag){ c.notes.unshift({id:rid('n'), at:Date.now(), by:who(), tag, body}); if(tag==='checkin') c.last_contacted=Date.now(); save(c, tag==='checkin'?'Check-in logged':'Note added'); }
 
-/* ---------- 7. NEXT MOVES ----------
-   For every open prospect: what has to happen next to get them to a sales call,
-   and the WhatsApp message that does it. Lower prio = higher on the list.     */
+/* ---------- 7. NEXT MOVES ---------- */
 function nextMove(c){
   const st = c.sales_stage, now = Date.now();
-  if(['sold','lost'].includes(st)) return null;
-  const ev = contactEvent(c), evSoon = ev && evMs(ev) > now && evMs(ev) - now < 36*HOUR;
-  const call = c.call || {};
-  const fresh = c.from_form && !c.last_contacted && !call.at;   // once they've booked, the call drives the next move
-  if(fresh && st==='applied' && !call.at && qualified(c)) return {prio:0, tpl:'book_call', why:'New qualified application: ready, '+latestKey(c,'budget')+'. Book the call.', fresh:true};
+  if(isMember(c) || ['base','premium','lost'].includes(st)) return null;
+  const call = c.call || {}, nev = contactNextEvent(c), nrec = nev && recOf(c, nev.id), lev = contactLastEvent(c), lrec = lev && recOf(c, lev.id);
+  const fresh = c.from_form && !c.last_contacted && !call.at;
   if(fresh) return {prio:0, tpl:'welcome', why:'New sign-up from a form. Say hi and start the conversation.', fresh:true};
-  if(call.at && call.outcome!=='cancelled' && call.at > now && call.at - now < 26*HOUR) return {prio:1, tpl:'call_remind', why:'Sales call '+fmtWhen(call.at)+'. Send the reminder.'};
-  if(call.outcome==='no_show') return {prio:2, tpl:'no_show', why:'Missed the call. Rebook while they still care.'};
-  if(call.outcome==='cancelled') return {prio:2, tpl:'no_show', why:'Cancelled their call. Rebook it.'};
-  if(st==='applied' && !call.at && qualified(c)) return {prio:2, tpl:'book_call', why:'Qualified application: ready, '+latestKey(c,'budget')+'. Book the call.'};
-  if(st==='applied' && !call.at) return {prio:3, tpl:null, review:true, why:'Application needs your review: '+(latestKey(c,'ready')||'no answer')+(latestKey(c,'budget')?', '+latestKey(c,'budget'):'')+'.'};
-  if(['showed','not_closed'].includes(call.outcome)) return {prio:3, tpl:'not_closed', why:'Had the call, not closed yet. Second-touch follow-up.'};
-  if(evSoon && st==='registered') return {prio:3, tpl:'event_remind', why:ev.name+' is '+until(evMs(ev))+'. Send a reminder.'};
-  if(st==='attended' && !hasSub(c,'application')) return {prio:3, tpl:'application', why:'Came to '+(ev?ev.name:'the event')+'. Send the application.'};
-  if(c.next_date && c.next_date <= todayStr()) return {prio:4, tpl:'plain', why:(c.next_action||'Follow-up due')+(c.next_date<todayStr()?' (overdue)':'')};
-  if(st==='invited' && daysSince(c.last_contacted||lastActivity(c))>=2) return {prio:5, tpl:'event_nudge', why:'Invited '+ago(c.last_contacted||lastActivity(c))+', not signed up yet.'};
-  if(st==='lead') return {prio:6, tpl:'event', why:'New lead. Invite them to the next event.'};
+  if(call.at && call.outcome!=='cancelled' && call.at>now && call.at-now<26*HOUR) return {prio:1, tpl:'call_remind', why:'Call '+fmtWhen(call.at)+'. Send the reminder.'};
+  if(['no_show','cancelled'].includes(call.outcome)) return {prio:2, tpl:'rebook', why:(call.outcome==='cancelled'?'Cancelled':'Missed')+' their call. Rebook it.'};
+  if(st==='applied' && !call.at) return qualified(c) ? {prio:2, tpl:'book_call', why:'Applied and ready to invest. Book the call.'} : {prio:3, tpl:null, review:true, why:'Application to review: '+(latestKey(c,'ready')||'no answer')+'.'};
+  if(['showed','not_closed'].includes(call.outcome)) return {prio:3, tpl:'not_closed', why:'Had the call, not joined yet. Follow up.'};
+  if(nev && nrec && nrec.rsvp_at && evMs(nev)-now < 36*HOUR) return {prio:3, tpl:'remind', ev:nev, why:"RSVP'd to "+nev.name+' '+until(evMs(nev))+'. Send a reminder.'};
+  if(lev && lrec && lrec.showed && (c.last_contacted||0) < evMs(lev) && daysSince(evMs(lev))<=5) return {prio:3, tpl:'after', ev:lev, why:'Came to '+lev.name+'. Follow up while it\'s fresh.'};
+  if(st==='engaged' && !hasSub(c,'application') && !c.form_sent.application) return {prio:4, tpl:'application', why:'Engaged at events. Send the application.'};
+  if(nev && nrec && !nrec.rsvp_at && daysSince(nrec.invited_at)>=2) return {prio:4, tpl:'nudge', ev:nev, why:'Invited to '+nev.name+' '+ago(nrec.invited_at)+', no RSVP.'};
+  if(c.next_date && c.next_date <= todayStr()) return {prio:5, tpl:'plain', why:(c.next_action||'Follow-up due')+(c.next_date<todayStr()?' (overdue)':'')};
+  if(!nev && ['lead','invited','showed','engaged'].includes(st)){
+    const h = nextEvent('hangout'), e = h || nextEvent('workshop');
+    return e ? {prio:6, tpl:evType(e).invite, ev:e, invite:true, why:'Not invited to anything coming up. Invite to '+e.name+' ('+evWhen(e)+').'}
+             : {prio:6, tpl:null, why:'Invite to the next hangout. Add it on the Events page first.'};
+  }
   return null;
 }
-function moves(){
-  return live().map(c=>({c, m:nextMove(c)})).filter(x=>x.m).sort((a,b)=>a.m.prio-b.m.prio || lastActivity(b.c)-lastActivity(a.c));
-}
+function moves(){ return live().map(c=>({c, m:nextMove(c)})).filter(x=>x.m).sort((a,b)=>a.m.prio-b.m.prio || lastActivity(b.c)-lastActivity(a.c)); }
 
 /* ---------- 8. SCREENS ---------- */
-const S = {role:null, tab:'today', open:null, ptab:'details', client:null, event:null, q:'', filter:'active', tag:'all', modal:null, closePlan:'6', closePay:'full', gatePick:'noah'};
+const S = {role:null, tab:'today', open:null, ptab:'details', client:null, event:null, q:'', filter:'active', tag:'all', modal:null, mTier:'base', gatePick:'noah'};
 
 function render(){
   const root = $('#root');
   if(!S.role){ root.innerHTML = viewGate(); return; }
   const r = ROLES[S.role];
-  const views = {today:viewToday, pipeline:viewPipeline, events:viewEvents, clients:viewClients, contacts:viewContacts, money:viewMoney, insights:viewInsights, settings:viewSettings};
-  let main = S.client ? viewClient() : S.event ? viewEvent() : views[S.tab]();
+  const views = {today:viewToday, pulse:viewPulse, pipeline:viewPipeline, events:viewEvents, clients:viewClients, contacts:viewContacts, money:viewMoney, insights:viewInsights, settings:viewSettings};
+  const main = S.client ? viewClient() : S.event ? viewEvent() : views[S.tab]();
   const navBtn = t => `<button class="${S.tab===t&&!S.client&&!S.event?'on':''}" data-act="tab" data-v="${t}">${TAB_NAMES[t]}</button>`;
   root.innerHTML = `
-    <div class="demo"><span><b>Test build.</b> Form sign-ups are live. Stages, notes and payments save in this browser only until the database move.</span>
-      <span style="display:flex;gap:8px;align-items:center"><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="showtest" ${showTest()?'checked':''} style="width:auto"> Show test data</label></span></div>
+    <div class="demo"><span><b>Test build.</b> Form sign-ups and Cal.com calls are live. Everything else saves in this browser only until the database move.</span>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="showtest" ${showTest()?'checked':''} style="width:auto"> Show test data</label></div>
     <div class="app">
       <aside class="side"><div class="sidein">
         <div class="brand">Live Before<br>You Die<small>Client pipeline</small></div>
@@ -878,165 +851,163 @@ function render(){
         <nav class="nav">${r.tabs.map(navBtn).join('')}</nav>
         <div class="who"><b>${esc(r.label)}</b>${esc(r.title)} · <a href="#" data-act="logout" style="color:#C9D1C6">Log out</a></div>
       </div></aside>
-      <div>
-        <div class="mtop"><div class="brand">Live Before You Die</div><button class="btn ochre sm" data-act="add">+ Add prospect</button></div>
-        <main class="main">${main}</main>
-      </div>
+      <div><div class="mtop"><div class="brand">Live Before You Die</div><button class="btn ochre sm" data-act="add">+ Add prospect</button></div>
+        <main class="main">${main}</main></div>
     </div>
     <nav class="mnav">${r.tabs.map(navBtn).join('')}</nav>
-    ${S.open?viewPanel():''}
-    ${S.modal?viewModal():''}`;
+    ${S.open?viewPanel():''}${S.modal?viewModal():''}`;
 }
 function syncChip(){
-  const map = {idle:['#9AA39B','Not synced yet'], busy:['#B9852F','Syncing...'], ok:['#4F7A45','Synced '+ago(Store.lastSync)],
-               warn:['#B9852F','Synced with warnings'], err:['#A4472F','Sync failed'], off:['#9AA39B','Sync starts on Netlify']};
+  const map = {idle:['#9AA39B','Not synced yet'], busy:['#B9852F','Syncing...'], ok:['#4F7A45','Synced '+ago(Store.lastSync)], warn:['#B9852F','Synced with warnings'], err:['#A4472F','Sync failed'], off:['#9AA39B','Sync starts on Netlify']};
   const [c,l] = map[SYNC.state] || map.idle;
   return `<span class="sync" id="syncchip" title="${esc(SYNC.msg)}"><span class="dot" style="background:${c}"></span>${esc(l)}<button class="btn sm ghost" data-act="sync">Sync</button></span>`;
 }
 function paintSync(){ const el = $('#syncchip'); if(el) el.outerHTML = syncChip(); }
-
 function viewGate(){
-  return `<div class="gate"><div class="gbox">
-    <div class="brand">Live Before<br>You Die</div>
+  return `<div class="gate"><div class="gbox"><div class="brand">Live Before<br>You Die</div>
     <div class="who">${Object.entries(ROLES).map(([k,r])=>`<button class="${S.gatePick===k?'on':''}" data-act="gatepick" data-v="${k}"><b>${esc(r.label)}</b><span>${esc(r.title)}</span></button>`).join('')}</div>
-    <input id="pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN" autocomplete="off" aria-label="PIN">
-    <div class="err" id="gerr"></div>
-    <button class="btn ochre" style="width:100%;justify-content:center;padding:12px" data-act="login">Open my portal</button>
-  </div></div>`;
+    <input id="pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN" autocomplete="off" aria-label="PIN"><div class="err" id="gerr"></div>
+    <button class="btn ochre" style="width:100%;justify-content:center;padding:12px" data-act="login">Open my portal</button></div></div>`;
+}
+const stChip = c => `<span class="chip" style="background:${stage(c.sales_stage).c};color:#fff">${esc(stage(c.sales_stage).label)}</span>`;
+function chipsFor(c){ return [c.from_form&&!c.demo?'<span class="chip livechip">From form</span>':'', c.demo?'<span class="chip">Test</span>':'', c.source?`<span class="chip">${esc(c.source)}</span>`:''].join(''); }
+function contactRow(c, meta, right, act){
+  return `<div class="row" data-act="${act||'open'}" data-v="${c.id}"><span class="dot" style="background:${stage(c.sales_stage).c}"></span>
+    <div class="grow"><div class="nm">${c.serious?'<span class="flag">★</span> ':''}${esc(c.name)}</div><div class="meta">${meta||esc(stage(c.sales_stage).label+' · '+ago(lastActivity(c)))}</div></div>
+    <div class="r">${right||''}</div></div>`;
+}
+const kpi = (v,k,hi) => `<div class="kpi ${hi?'hi':''}"><div class="v">${v}</div><div class="k">${k}</div></div>`;
+function weekCounts(){
+  const all = live(), wk = weekAgo();
+  let invites=0, showed=0;
+  all.forEach(c=>c.events.forEach(x=>{ if(x.invited_at>=wk) invites++; const e = Store.getE(x.id); if(e && x.showed && evMs(e)>=wk && evMs(e)<=Date.now()) showed++; }));
+  return {leads:all.filter(c=>c.created_at>=wk).length, invites, showed,
+          newMembers:all.filter(c=>c.membership && c.membership.start>=wk).length,
+          cashWeek:all.reduce((a,c)=>a+c.payments.filter(p=>p.at>=wk).reduce((x,p)=>x+p.amount,0),0)};
 }
 
-function chipBudget(c){ const b = latestKey(c,'budget'); if(!b) return ''; return `<span class="chip ${/5,000 to|10,000\+/.test(b)?'ochre':''}">${esc(b)}</span>`; }
-function chipsFor(c){
-  return [chipBudget(c), latestKey(c,'commitment')?`<span class="chip">Commit ${esc(latestKey(c,'commitment'))}/10</span>`:'',
-    c.from_form&&!c.demo?'<span class="chip livechip">From form</span>':'', c.demo?'<span class="chip">Test</span>':''].join('');
-}
-function contactRow(c, meta, right){
-  const s = stage(c.sales_stage);
-  return `<div class="row" data-act="open" data-v="${c.id}"><span class="dot" style="background:${s.c}"></span>
-    <div class="grow"><div class="nm">${c.serious?'<span class="flag">★</span> ':''}${esc(c.name)}</div>
-    <div class="meta">${meta||esc(s.label+' · '+(c.source||'')+' · '+ago(lastActivity(c)))}</div></div>
-    <div class="r">${right!==undefined?right:chipBudget(c)}</div></div>`;
-}
-function kpi(v,k,hi){ return `<div class="kpi ${hi?'hi':''}"><div class="v">${v}</div><div class="k">${k}</div></div>`; }
-
-// ---- Today ----
-function salesKPIs(){
-  const all = live(), wk = Date.now()-7*DAY, ne = nextEvent();
-  const calls = all.filter(c=>c.call && c.call.outcome);
-  const held = calls.filter(c=>['showed','closed','not_closed'].includes(c.call.outcome)).length;
-  const noShow = calls.filter(c=>c.call.outcome==='no_show').length;
-  const closed = calls.filter(c=>c.call.outcome==='closed').length;
-  const m0 = new Date(); m0.setDate(1); m0.setHours(0,0,0,0);
-  const cashMonth = all.reduce((a,c)=>a+c.payments.filter(p=>p.at>=m0.getTime()).reduce((x,p)=>x+p.amount,0),0);
-  return `<div class="kpis">
-    ${kpi(ne?eventPeople(ne).length:'0', ne?'Signed up: '+esc(ne.name):'No upcoming event', true)}
-    ${kpi(all.filter(c=>c.created_at>=wk).length,'New leads this week')}
-    ${kpi(all.filter(c=>c.submissions.some(s=>s.type==='application'&&s.at>=wk)).length,'Applications this week')}
-    ${kpi(all.filter(c=>c.call&&c.call.at>Date.now()&&c.call.outcome!=='cancelled').length,'Calls booked')}
-    ${kpi(held+noShow?Math.round(held/(held+noShow)*100)+'%':'–','Show rate')}
-    ${kpi(held?Math.round(closed/held*100)+'%':'–','Close rate')}
-    ${kpi(money(cashMonth),'Cash this month')}
-  </div>`;
-}
+// ---- Today (Noah, Ryan) ----
 function moveRow({c,m}){
   const area = answer(c,null,/area/i), struggle = answer(c,'application',/struggling/i);
   return `<div class="move" data-act="open" data-v="${c.id}">
     <div class="grow"><div class="nm">${c.serious?'<span class="flag">★</span> ':''}${esc(c.name)} ${m.fresh?'<span class="age">New</span>':''}</div>
       <div class="why">${esc(m.why)}</div>
-      <div class="data">${chipsFor(c)}<span class="chip" style="background:${stage(c.sales_stage).c};color:#fff">${esc(stage(c.sales_stage).label)}</span></div>
-      ${struggle||area?`<div class="data"><span class="q">${esc(struggle?'Struggle: '+struggle:'Wants: '+area)}</span></div>`:''}
-    </div>
-    <div class="acts">${m.tpl?`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="${m.tpl}">${esc(MSG[m.tpl].label)}</button>`:`<button class="btn sm" data-act="review" data-v="${c.id}">Review</button>`}
-      <button class="btn sm ghost" data-act="done" data-v="${c.id}" title="Mark this contacted for now">Done</button></div>
-  </div>`;
+      ${c.origin_note?`<div class="data"><span class="q">${esc('How we met: '+c.origin_note)}</span></div>`:''}
+      <div class="data">${stChip(c)}${chipsFor(c)}</div>
+      ${struggle||area?`<div class="data"><span class="q">${esc(struggle?'Struggle: '+struggle:'Wants: '+area)}</span></div>`:''}</div>
+    <div class="acts">${m.tpl?`<button class="btn sm" data-act="${m.invite?'invitego':'wa'}" data-v="${c.id}" data-t="${m.tpl}" data-e="${m.ev?m.ev.id:''}">${esc(MSG[m.tpl].label)}</button>`:m.review?`<button class="btn sm" data-act="review" data-v="${c.id}">Review</button>`:''}
+      <button class="btn sm ghost" data-act="done" data-v="${c.id}">Done</button></div></div>`;
 }
 function eventMini(e){
   if(!e) return `<div class="box"><h3>Next event</h3><p class="muted" style="margin:0">Nothing scheduled. Add one on the Events page.</p></div>`;
-  const ppl = eventPeople(e);
-  return `<div class="evcard up" data-act="event" data-v="${e.id}">
-    <div class="when">${esc(until(evMs(e)))} · ${esc(evWhen(e))}</div><h3>${esc(e.name)}</h3>
-    <div class="evnums"><div><b>${ppl.length}</b>signed up</div><div><b>${ppl.filter(qualifiedOrHot).length}</b>ready to invest</div></div>
-    <div class="evbtns">${e.wa_link?`<a class="btn sm ochre" href="${esc(e.wa_link)}" target="_blank" rel="noopener">WhatsApp group</a>`:''}
-      ${e.form_url?`<button class="btn sm ghost" data-act="copyurl" data-u="${esc(e.form_url)}">Copy sign-up link</button>`:''}</div></div>`;
+  const s = evStats(e);
+  return `<div class="evcard up" data-act="event" data-v="${e.id}"><div class="when"><span class="pill-type">${esc(evType(e).label)}</span> · ${esc(until(evMs(e)))}</div><h3>${esc(e.name)}</h3>
+    <div class="muted" style="font-size:13px">${esc(evWhen(e))}${e.location?' · '+esc(e.location):''}</div>
+    <div class="evnums"><div><b>${s.inv}</b>invited</div><div><b>${s.rsvp}</b>RSVP'd</div></div>
+    <div class="evbtns">${e.wa_link?`<a class="btn sm ochre" href="${esc(e.wa_link)}" target="_blank" rel="noopener">WhatsApp group</a>`:''}${e.form_url?`<button class="btn sm ghost" data-act="copyurl" data-u="${esc(e.form_url)}">Copy sign-up link</button>`:''}</div></div>`;
 }
-const qualifiedOrHot = c => latestKey(c,'ready')==='Yes';
 function todoBox(){
   const ts = Store.tasks().filter(t=>!t.done).sort((a,b)=>(a.due||'9')>(b.due||'9')?1:-1);
-  return `<div class="box"><h3>To-dos</h3>
-    <div class="list" style="background:#fff">${ts.length?ts.map(t=>`<div class="todo"><input type="checkbox" data-act="todo" data-v="${t.id}" aria-label="Done">
-      <div class="grow">${esc(t.text)}<div class="w">${esc(t.by)}${t.due?' · due '+esc(fmtDate(new Date(t.due+'T12:00').getTime())):''}${t.due&&t.due<todayStr()?' · overdue':''}</div></div></div>`).join(''):'<div class="todo"><span class="muted">Nothing on the list.</span></div>'}</div>
+  return `<div class="box"><h3>To-dos</h3><div class="list" style="background:#fff">${ts.length?ts.map(t=>`<div class="todo"><input type="checkbox" data-act="todo" data-v="${t.id}" aria-label="Done">
+    <div class="grow">${esc(t.text)}<div class="w">${esc(t.by)}${t.due?' · due '+esc(fmtDate(new Date(t.due+'T12:00').getTime())):''}</div></div></div>`).join(''):'<div class="todo"><span class="muted">Nothing on the list.</span></div>'}</div>
     <div class="addrow"><input id="tnew" placeholder="Add a to-do"><input id="tdue" type="date" style="max-width:150px"><button class="btn sm" data-act="addtodo">Add</button></div></div>`;
 }
 function callsBox(){
-  const cs = live().filter(c=>c.call&&c.call.at>=startToday()&&c.call.outcome!=='cancelled'&&!['sold','lost'].includes(c.sales_stage)).sort((a,b)=>a.call.at-b.call.at);
+  const cs = live().filter(c=>c.call&&c.call.at>=startToday()&&c.call.outcome!=='cancelled'&&!isMember(c)).sort((a,b)=>a.call.at-b.call.at);
   return `<div class="box"><h3>Calls coming up</h3>${cs.length?`<div class="list" style="background:#fff">${cs.map(c=>contactRow(c, esc(fmtWhen(c.call.at)), c.call.meet?`<a class="btn sm" href="${esc(c.call.meet)}" target="_blank" rel="noopener">Join</a>`:'')).join('')}</div>`:'<p class="muted" style="margin:0">No calls booked.</p>'}</div>`;
 }
 function csToday(){
-  const cl = live().filter(c=>c.sales_stage==='sold');
-  const need = cl.filter(c=>!['completed'].includes(c.cs_stage) && c.cs_stage && daysSince(c.last_contacted||0)>=CHECKIN_DAYS);
-  const wb = cl.filter(c=>c.cs_stage==='onb_sent' && daysSince(c.onb_sent_at||lastActivity(c))>=2);
-  const notSent = cl.filter(c=>!c.cs_stage);
-  const book = cl.filter(c=>c.cs_stage==='workbook');
-  const risk = cl.filter(c=>c.cs_stage==='at_risk');
+  const cl = members();
+  const notSent = cl.filter(c=>!c.cs_stage), wb = cl.filter(c=>c.cs_stage==='onb_sent' && daysSince(c.onb_sent_at||lastActivity(c))>=2);
+  const need = cl.filter(c=>c.cs_stage && c.cs_stage!=='completed' && daysSince(c.last_contacted||0)>=CHECKIN_DAYS);
+  const book = cl.filter(c=>c.cs_stage==='workbook'), risk = cl.filter(c=>c.cs_stage==='at_risk');
+  const unpaid = new Date().getDate()>=5 ? cl.filter(c=>!paidThisMonth(c)) : [];
   const sec = (h, list, meta, act) => list.length?`<h2>${h}</h2><div class="list">${list.map(c=>`<div class="move" data-act="client" data-v="${c.id}"><div class="grow"><div class="nm">${esc(c.name)}</div><div class="why">${esc(meta(c))}</div></div><div class="acts">${act(c)}</div></div>`).join('')}</div>`:'';
-  return `<div class="kpis">${kpi(cl.filter(c=>['active','onb_call','workbook'].includes(c.cs_stage)).length,'Active clients',true)}${kpi(need.length,'Need a check-in')}${kpi(wb.length+notSent.length,'Workbooks out')}${kpi(risk.length,'At risk')}</div>
-    ${sec('Send onboarding', notSent, ()=>'Sold. Workbook not sent yet.', c=>`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="onboarding">Send onboarding</button>`)}
-    ${sec('Check in', need, c=>'Last contact '+ago(c.last_contacted)+'. '+(csStage(c.cs_stage)||{}).label, c=>`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="checkin">Check in</button>`)}
+  return `<div class="kpis">${kpi(cl.length,'Active members',true)}${kpi(need.length,'Need a check-in')}${kpi(wb.length+notSent.length,'Workbooks out')}${kpi(risk.length,'At risk')}</div>
+    ${sec('Send onboarding', notSent, ()=>'Joined. Workbook not sent yet.', c=>`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="onboarding">Send onboarding</button>`)}
+    ${sec('Check in', need, c=>'Last contact '+ago(c.last_contacted)+' · week '+courseWeek(c)+' of '+COURSE_WEEKS, c=>`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="checkin">Check in</button>`)}
     ${sec('Workbooks to chase', wb, c=>'Sent '+ago(c.onb_sent_at), c=>`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="wb_chase">Nudge</button>`)}
     ${sec('Onboarding calls to book', book, ()=>'Workbook is in. Book the call with Brett.', c=>`<button class="btn sm ghost" data-act="client" data-v="${c.id}">Open</button>`)}
-    ${sec('At risk', risk, c=>'Last contact '+ago(c.last_contacted), c=>`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="checkin">Check in</button>`)}`;
+    ${sec('At risk', risk, c=>'Last contact '+ago(c.last_contacted), c=>`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="checkin">Check in</button>`)}
+    ${sec('No payment logged this month', unpaid, c=>TIERS_PLAN[c.membership.tier].label+' · '+money(c.membership.price)+'/month', c=>`<button class="btn sm ghost" data-act="client" data-v="${c.id}">Open</button>`)}`;
 }
 function viewToday(){
-  const h = new Date().getHours(), greet = h<12?'Morning':h<18?'Afternoon':'Evening';
-  const mv = moves();
-  const head = `<div class="topline"><div><h1>${greet}, ${esc(who())}</h1><p class="sub">${S.role==='ryan'?'Your clients today.':mv.length+' prospects need a next move.'}</p></div>${syncChip()}</div>`;
-  if(S.role==='ryan') return head + `<div class="dash"><div>${csToday()}</div><div>${eventMini(nextEvent())}${todoBox()}</div></div>`;
-  const salesCol = `<h2>Next moves</h2>${mv.length?`<div class="list">${mv.slice(0,25).map(moveRow).join('')}</div>`:'<div class="empty">Everyone is handled. Add a prospect or check the pipeline.</div>'}`;
-  return head + salesKPIs() + `<div class="dash"><div>${salesCol}${S.role==='brett'?`<h2>Client success</h2>${csToday()}`:''}</div><div>${eventMini(nextEvent())}${callsBox()}${todoBox()}</div></div>`;
+  const h = new Date().getHours(), greet = h<12?'Morning':h<18?'Afternoon':'Evening', mv = moves();
+  const head = `<div class="topline"><div><h1>${greet}, ${esc(who())}</h1><p class="sub">${S.role==='ryan'?'Your members today.':mv.length+' people need a next move.'}</p></div>${syncChip()}</div>`;
+  const evs = upcoming().slice(0,2);
+  const right = evs.length ? evs.map(eventMini).join('') : eventMini(null);
+  if(S.role==='ryan') return head + `<div class="dash"><div>${csToday()}</div><div>${right}${todoBox()}</div></div>`;
+  const w = weekCounts(), ne = nextEvent();
+  return head + `<div class="kpis">${kpi(ne?evStats(ne).rsvp:0, ne?"RSVP'd: "+esc(ne.name):'No upcoming event', true)}${kpi(w.leads,'New leads this week')}${kpi(w.invites,'Invites this week')}${kpi(w.showed,'Showed up this week')}${kpi(live().filter(c=>c.membership&&c.membership.start>=monthStart()).length,'New members this month')}${kpi(money(mrr()),'Monthly recurring')}</div>
+    <div class="dash"><div><h2>Next moves</h2>${mv.length?`<div class="list">${mv.slice(0,30).map(moveRow).join('')}</div>`:'<div class="empty">Everyone is handled. Add a prospect or plan the next hangout.</div>'}</div>
+    <div>${right}${callsBox()}${todoBox()}</div></div>`;
+}
+
+// ---- Pulse (Brett): what happened, what's coming, what to know. No to-dos. ----
+function viewPulse(){
+  const w = weekCounts(), mem = members(), now = Date.now();
+  const feedItem = (c, h, d, at) => `<div class="fi" data-act="${isMember(c)?'client':'open'}" data-v="${c.id}"><div class="h"><b>${esc(c.name)}</b><span>${esc(ago(at))}</span></div><div class="d">${esc(h)}${d?': '+esc(d):''}</div></div>`;
+  const conn = []; mem.forEach(c=>c.notes.filter(n=>n.at>=now-21*DAY).forEach(n=>conn.push({c, at:n.at, h:TAGS[n.tag]+' from '+n.by, d:n.body})));
+  conn.sort((a,b)=>b.at-a.at);
+  const act = []; const KEY = /^(Joined|Upgraded|Cancelled membership|Submitted|Signed up|Showed up|Participated|Call booked|Call rescheduled|Goal done)/;
+  live().forEach(c=>c.log.filter(l=>l.at>=now-7*DAY && KEY.test(l.body)).forEach(l=>act.push({c, at:l.at, h:l.body, d:''})));
+  act.sort((a,b)=>b.at-a.at);
+  const soon = upcoming().filter(e=>evMs(e) < now+8*DAY);
+  const calls = live().filter(c=>c.call && c.call.outcome!=='cancelled' && c.call.at>now && c.call.at<now+8*DAY).sort((a,b)=>a.call.at-b.call.at);
+  const onb = mem.filter(c=>c.cs_stage==='workbook');
+  const quiet = mem.filter(c=>daysSince(c.last_contacted||0)>=QUIET_DAYS || c.cs_stage==='at_risk');
+  const wins = []; mem.forEach(c=>c.notes.filter(n=>n.tag==='win' && n.at>=now-14*DAY).forEach(n=>wins.push({c,n})));
+  const box = (title, inner) => `<div class="box"><h3>${title}</h3>${inner}</div>`;
+  const empty = t => `<p class="muted" style="margin:0">${t}</p>`;
+  return `<div class="topline"><div><h1>Pulse</h1><p class="sub">What happened this week, what's coming, and what's worth knowing.</p></div>${syncChip()}</div>
+    <div class="kpis">${kpi(mem.length,'Active members',true)}${kpi(money(mrr()),'Monthly recurring')}${kpi(w.newMembers,'New members this week')}${kpi(w.leads,'New leads this week')}${kpi(w.invites,'Invites sent')}${kpi(w.showed,'Showed up to events')}</div>
+    <div class="dash"><div>
+      ${box('Recent client connections', conn.length?`<div class="list feed" style="background:#fff">${conn.slice(0,12).map(x=>feedItem(x.c,x.h,x.d,x.at)).join('')}</div>`:empty('No check-ins or notes on members in the last three weeks.'))}
+      ${box('This week across the business', act.length?`<div class="list feed" style="background:#fff">${act.slice(0,15).map(x=>feedItem(x.c,x.h,'',x.at)).join('')}</div>`:empty('Quiet week so far.'))}
+    </div><div>
+      ${box('Coming up', (soon.length||calls.length||onb.length)?`<div class="list feed" style="background:#fff">
+        ${soon.map(e=>{const s=evStats(e);return `<div class="fi" data-act="event" data-v="${e.id}"><div class="h"><b>${esc(e.name)}</b><span>${esc(until(evMs(e)))}</span></div><div class="d">${esc(evWhen(e))} · ${s.rsvp} RSVP'd of ${s.inv} invited</div></div>`;}).join('')}
+        ${calls.map(c=>`<div class="fi" data-act="open" data-v="${c.id}"><div class="h"><b>Call: ${esc(c.name)}</b><span>${esc(until(c.call.at))}</span></div><div class="d">${esc(fmtWhen(c.call.at))}</div></div>`).join('')}
+        ${onb.map(c=>`<div class="fi" data-act="client" data-v="${c.id}"><div class="h"><b>Onboarding call: ${esc(c.name)}</b><span>to book</span></div><div class="d">Workbook is in, ready to read.</div></div>`).join('')}
+        </div>`:empty('Nothing in the next week.'))}
+      ${box('Worth knowing', `${quiet.length?`<p class="muted" style="margin:0 0 6px;font-size:13px">Gone quiet or at risk</p><div class="list feed" style="background:#fff;margin-bottom:12px">${quiet.map(c=>`<div class="fi" data-act="client" data-v="${c.id}"><div class="h"><b>${esc(c.name)}</b><span>${c.cs_stage==='at_risk'?'at risk':'quiet'}</span></div><div class="d">Last contact ${esc(ago(c.last_contacted))}</div></div>`).join('')}</div>`:''}
+        ${wins.length?`<p class="muted" style="margin:0 0 6px;font-size:13px">Recent wins</p><div class="list feed" style="background:#fff;margin-bottom:12px">${wins.map(({c,n})=>feedItem(c,'Win',n.body,n.at)).join('')}</div>`:''}
+        <p class="muted" style="margin:0 0 6px;font-size:13px">Where members are</p>
+        ${mem.length?`<div class="list feed" style="background:#fff">${mem.sort((a,b)=>courseWeek(b)-courseWeek(a)).map(c=>`<div class="fi" data-act="client" data-v="${c.id}"><div class="h"><b>${esc(c.name)}</b><span class="wk">Week ${courseWeek(c)} of ${COURSE_WEEKS}</span></div><div class="d">${esc(TIERS_PLAN[c.membership.tier].label)} · ${esc((csStage(c.cs_stage)||{label:'Onboarding not sent'}).label)}</div><div class="weekbar"><i style="width:${courseWeek(c)/COURSE_WEEKS*100}%"></i></div></div>`).join('')}</div>`:empty('No members yet.')}`)}
+    </div></div>`;
 }
 
 // ---- Pipeline ----
 function boardCard(c){
-  const n = c.notes.length, b = chipBudget(c), m = nextMove(c);
-  return `<div class="card" data-act="open" data-v="${c.id}">
-    <div class="nm">${c.serious?'<span class="flag">★</span> ':''}${esc(c.name)}</div>
+  const m = nextMove(c);
+  return `<div class="card" data-act="${isMember(c)?'client':'open'}" data-v="${c.id}"><div class="nm">${c.serious?'<span class="flag">★</span> ':''}${esc(c.name)}</div>
     <div class="meta">${esc(c.source)} · ${ago(lastActivity(c))}</div>
-    ${m?`<div class="meta" style="color:var(--ink);margin-top:4px">Next: ${esc(m.tpl?MSG[m.tpl].label:'Review')}</div>`:''}
-    ${(b||c.call||n)?`<div class="chips">${b}${c.call&&c.call.at>=startToday()?`<span class="chip moss">Call ${fmtDate(c.call.at)}</span>`:''}${n?`<span class="chip">${n} note${n>1?'s':''}</span>`:''}</div>`:''}
-  </div>`;
+    ${c.origin_note?`<div class="meta" style="color:var(--ink);margin-top:4px">${esc(c.origin_note.slice(0,70))}${c.origin_note.length>70?'...':''}</div>`:''}
+    ${m?`<div class="meta" style="margin-top:4px"><b>Next:</b> ${esc(m.tpl?MSG[m.tpl].label:m.review?'Review':'Invite')}</div>`:''}
+    ${c.call&&c.call.at>=startToday()&&c.call.outcome!=='cancelled'?`<div class="chips"><span class="chip moss">Call ${fmtDate(c.call.at)}</span></div>`:''}</div>`;
 }
 function viewPipeline(){
   const list = live();
-  return `<div class="topline"><div><h1>Pipeline</h1><p class="sub">${list.filter(c=>!['sold','lost'].includes(c.sales_stage)).length} people in play.</p></div>${syncChip()}</div>
+  return `<div class="topline"><div><h1>Pipeline</h1><p class="sub">${list.filter(c=>!isMember(c)&&c.sales_stage!=='lost').length} prospects · ${members().length} members</p></div>${syncChip()}</div>
     <div class="board">${SALES_STAGES.map(s=>{ const cs = list.filter(c=>c.sales_stage===s.id).sort((a,b)=>lastActivity(b)-lastActivity(a));
       return `<div class="col"><h3><span style="color:var(--ink)"><span class="dot" style="background:${s.c}"></span> ${esc(s.label)}</span><span>${cs.length}</span></h3>${cs.map(boardCard).join('')}</div>`; }).join('')}</div>`;
 }
 
 // ---- Events ----
-function evStats(e){
-  const p = eventPeople(e);
-  const att = p.filter(c=>(c.events.find(x=>x.id===e.id)||{}).attended===true).length;
-  const app = p.filter(c=>hasSub(c,'application') || sIdx(c.sales_stage)>=sIdx('applied')).length;
-  const sold = p.filter(c=>c.sales_stage==='sold');
-  return {reg:p.length, att, app, sold:sold.length, cash:sold.reduce((a,c)=>a+paid(c),0), contracted:sold.reduce((a,c)=>a+(c.deal?c.deal.price:0),0)};
-}
-function eventCard(e, upcoming){
+function eventCard(e, up){
   const s = evStats(e);
-  return `<div class="evcard ${upcoming?'up':''}" data-act="event" data-v="${e.id}">
-    <div class="when">${upcoming?esc(until(evMs(e)))+' · ':''}${esc(evWhen(e))}${e.location?' · '+esc(e.location):''}</div>
+  return `<div class="evcard ${up?'up':''}" data-act="event" data-v="${e.id}">
+    <div class="when"><span class="pill-type">${esc(evType(e).label)}</span> · ${up?esc(until(evMs(e)))+' · ':''}${esc(evWhen(e))}${e.location?' · '+esc(e.location):''}</div>
     <h3>${esc(e.name)} ${e.demo?'<span class="chip">Test</span>':''}</h3>
-    <div class="evnums"><div><b>${s.reg}</b>signed up</div><div><b>${s.att}</b>attended</div><div><b>${s.app}</b>applied</div><div><b>${s.sold}</b>sold</div><div><b>${money(s.cash)}</b>collected</div></div>
-    <div class="evbtns">
-      ${e.wa_link?`<a class="btn sm ghost" href="${esc(e.wa_link)}" target="_blank" rel="noopener">WhatsApp group</a>`:''}
-      ${e.form_url&&upcoming?`<button class="btn sm ghost" data-act="copyurl" data-u="${esc(e.form_url)}">Copy sign-up link</button>`:''}
-      ${e.recording?`<a class="btn sm ghost" href="${esc(e.recording)}" target="_blank" rel="noopener">Recording</a>`:''}
-    </div></div>`;
+    <div class="evnums"><div><b>${s.inv}</b>invited</div><div><b>${s.rsvp}</b>RSVP'd</div><div><b>${s.showed}</b>showed up</div><div><b>${s.part}</b>participated</div><div><b>${s.joined}</b>joined</div></div>
+    <div class="evbtns">${e.wa_link?`<a class="btn sm ghost" href="${esc(e.wa_link)}" target="_blank" rel="noopener">WhatsApp group</a>`:''}
+      ${e.form_url&&up?`<button class="btn sm ghost" data-act="copyurl" data-u="${esc(e.form_url)}">Copy sign-up link</button>`:''}
+      ${e.recording?`<a class="btn sm ghost" href="${esc(e.recording)}" target="_blank" rel="noopener">Recording</a>`:''}</div></div>`;
 }
 function viewEvents(){
-  const evs = liveEvents(), now = Date.now()-3*HOUR;
-  const up = evs.filter(e=>evMs(e)>=now).sort((a,b)=>evMs(a)-evMs(b));
-  const past = evs.filter(e=>evMs(e)<now).sort((a,b)=>evMs(b)-evMs(a));
-  return `<div class="topline"><div><h1>Events</h1><p class="sub">Every free event: sign-ups, group links, recordings, and what each one turned into.</p></div>
+  const evs = liveEvents(), cut = Date.now()-3*HOUR;
+  const up = evs.filter(e=>evMs(e)>=cut).sort((a,b)=>evMs(a)-evMs(b)), past = evs.filter(e=>evMs(e)<cut).sort((a,b)=>evMs(b)-evMs(a));
+  return `<div class="topline"><div><h1>Events</h1><p class="sub">Friday Night Hangouts, in-person events and online workshops. Who was invited, who came, what it turned into.</p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${syncChip()}<button class="btn" data-act="addevent">+ New event</button></div></div>
     <h2>Upcoming</h2>${up.length?up.map(e=>eventCard(e,true)).join(''):'<div class="empty">No upcoming events. Add one with + New event.</div>'}
     <h2>Past</h2>${past.length?past.map(e=>eventCard(e,false)).join(''):'<div class="empty">Past events land here with their numbers.</div>'}`;
@@ -1044,16 +1015,18 @@ function viewEvents(){
 
 // ---- Clients ----
 function viewClients(){
-  const list = live().filter(c=>c.sales_stage==='sold');
-  const order = [null,'onb_sent','workbook','onb_call','active','at_risk','completed'];
+  const list = members(), order = [null,'onb_sent','workbook','onb_call','active','at_risk','completed'];
   list.sort((a,b)=>order.indexOf(a.cs_stage||null)-order.indexOf(b.cs_stage||null));
-  return `<h1>Clients</h1><p class="sub">${list.length} members. Tap anyone for their goals, timeline and check-ins.</p>
-    <div class="ccards">${list.map(c=>{ const g = (c.goals.find(x=>!x.done)||{}).text || answer(c,'onboarding',/BUILD/) || answer(c,'application',/12 months/);
+  const gone = live().filter(c=>c.membership && c.membership.status==='cancelled');
+  return `<h1>Clients</h1><p class="sub">${list.length} active members. Tap anyone for goals, timeline and check-ins.</p>
+    <div class="ccards">${list.map(c=>{ const g = (c.goals.find(x=>!x.done)||{}).text || answer(c,'onboarding',/BUILD/);
       const late = daysSince(c.last_contacted||0)>=CHECKIN_DAYS;
       return `<div class="ccard" data-act="client" data-v="${c.id}"><div class="nm">${esc(c.name)} ${c.demo?'<span class="chip">Test</span>':''}</div>
+        <div class="foot" style="margin-top:4px"><span class="chip ${c.membership.tier==='premium'?'ochre':''}">${esc(TIERS_PLAN[c.membership.tier].label)}</span><span class="wk">Week ${courseWeek(c)} of ${COURSE_WEEKS}</span></div>
+        <div class="weekbar"><i style="width:${courseWeek(c)/COURSE_WEEKS*100}%"></i></div>
         <div class="goalline">${g?esc(g):'<span class="muted">No goals set yet</span>'}</div>
-        <div class="foot"><span class="chip ${c.cs_stage==='at_risk'?'rust':'moss'}">${esc((csStage(c.cs_stage)||{label:'Onboarding not sent'}).label)}</span>
-        <span class="chip ${late?'rust':''}">Contact ${esc(ago(c.last_contacted))}</span></div></div>`; }).join('')||'<div class="empty">No clients yet.</div>'}</div>`;
+        <div class="foot"><span class="chip ${c.cs_stage==='at_risk'?'rust':'moss'}">${esc((csStage(c.cs_stage)||{label:'Onboarding not sent'}).label)}</span><span class="chip ${late?'rust':''}">Contact ${esc(ago(c.last_contacted))}</span></div></div>`; }).join('')||'<div class="empty">No members yet.</div>'}</div>
+    ${gone.length?`<h2>Cancelled</h2><div class="list">${gone.map(c=>contactRow(c,'Cancelled '+ago(c.membership.cancelled_at),'', 'client')).join('')}</div>`:''}`;
 }
 
 // ---- Contacts ----
@@ -1061,50 +1034,54 @@ function filteredContacts(){
   const q = S.q.toLowerCase();
   return Store.contacts().filter(c=>{
     if(!showTest() && c.demo) return false;
-    if(S.filter==='archived'){ if(!c.archived) return false; } else { if(c.archived) return false; if(S.filter!=='active' && c.sales_stage!==S.filter) return false; }
-    return !q || [c.name,c.email,c.instagram,c.whatsapp,c.location,c.hot_button,c.home_country,c.meeting_country,c.secondary_country].join(' ').toLowerCase().includes(q);
+    if(S.filter==='archived'){ if(!c.archived) return false; } else { if(c.archived) return false; if(S.filter!=='active' && c.sales_stage!==S.filter && !(SOURCES.includes(S.filter) && c.source===S.filter)) return false; }
+    return !q || [c.name,c.email,c.instagram,c.whatsapp,c.location,c.hot_button,c.origin_note].join(' ').toLowerCase().includes(q);
   }).sort((a,b)=>lastActivity(b)-lastActivity(a));
 }
-function contactsList(){ const ls = filteredContacts(); return ls.length?`<div class="list">${ls.map(c=>contactRow(c,null,chipsFor(c))).join('')}</div>`:'<div class="empty">No one matches that.</div>'; }
+function contactsList(){ const ls = filteredContacts(); return ls.length?`<div class="list">${ls.map(c=>contactRow(c, esc(stage(c.sales_stage).label+' · '+c.source+(c.location?' · '+c.location:'')+' · '+ago(lastActivity(c))), formChips(c))).join('')}</div>`:'<div class="empty">No one matches that.</div>'; }
 function viewContacts(){
-  return `<div class="topline"><div><h1>Contacts</h1><p class="sub">Everyone, one record per person.</p></div>${syncChip()}</div>
-    <div class="bar"><input id="q" type="search" placeholder="Search name, email, IG, WhatsApp, country" value="${esc(S.q)}">
-      <select id="filter">${[['active','Everyone active'],...SALES_STAGES.map(s=>[s.id,s.label]),['archived','Archived']].map(([v,l])=>`<option value="${v}" ${S.filter===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+  return `<div class="topline"><div><h1>Contacts</h1><p class="sub">Everyone, one record per person. Search covers how-we-met notes too.</p></div>${syncChip()}</div>
+    <div class="bar"><input id="q" type="search" placeholder="Search name, email, IG, location, notes" value="${esc(S.q)}">
+      <select id="filter">${[['active','Everyone active'],...SALES_STAGES.map(s=>[s.id,s.label]),...SOURCES.map(s=>[s,'Source: '+s]),['archived','Archived']].map(([v,l])=>`<option value="${esc(v)}" ${S.filter===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
     <div id="clist">${contactsList()}</div>`;
 }
 
 // ---- Money ----
 function viewMoney(){
-  const sold = live().filter(c=>c.sales_stage==='sold' && c.deal), members = sold.length;
-  const collected = sold.reduce((a,c)=>a+paid(c),0), contracted = sold.reduce((a,c)=>a+c.deal.price,0);
-  const six = sold.filter(c=>c.deal.plan==='6').length, full = sold.filter(c=>c.deal.pay==='full').length;
-  const curIdx = TIERS.findIndex(t=>members<t.n), cur = TIERS[curIdx<0?TIERS.length-1:curIdx];
+  const mem = members(), n = mem.length, base = mem.filter(c=>c.membership.tier==='base').length, prem = n - base;
+  const all = live(), m0 = monthStart();
+  const cashMonth = all.reduce((a,c)=>a+c.payments.filter(p=>p.at>=m0).reduce((x,p)=>x+p.amount,0),0);
+  const cashAll = all.reduce((a,c)=>a+totalPaid(c),0);
+  const joinedM = all.filter(c=>c.membership && c.membership.start>=m0).length;
+  const cancM = all.filter(c=>c.membership && c.membership.cancelled_at>=m0).length;
+  const upM = all.filter(c=>c.membership && c.membership.upgraded_at>=m0).length;
+  const curIdx = TIERS.findIndex(t=>n<t.n), cur = TIERS[curIdx<0?TIERS.length-1:curIdx];
   const pct = (a,b) => b ? Math.round(a/b*100) : 0;
-  const split = (title,a,al,b,bl) => `<div class="split"><b>${title}</b><div class="track">${members?`<div class="a" style="width:${pct(a,a+b)}%"></div><div class="b" style="width:${pct(b,a+b)}%"></div>`:''}</div>
-    <div class="legend"><span><span class="dot" style="background:var(--moss)"></span> ${al} · ${a}</span><span><span class="dot" style="background:var(--ochre)"></span> ${bl} · ${b}</span></div></div>`;
-  const all = live(), order = ['registered','attended','applied','call','sold'];
-  const reached = id => all.filter(c=>c.sales_stage!=='lost' && sIdx(c.sales_stage)>=sIdx(id)).length, top = Math.max(1, reached('registered'));
-  const owedList = sold.filter(c=>owed(c)>0).sort((a,b)=>owed(b)-owed(a));
+  const order = ['invited','showed','engaged','applied','base'];
+  const reached = id => all.filter(c=>c.sales_stage!=='lost' && sIdx(c.sales_stage)>=sIdx(id)).length, top = Math.max(1, reached('invited'));
+  const unpaid = mem.filter(c=>!paidThisMonth(c));
   const evs = liveEvents().filter(e=>evMs(e)<Date.now()).sort((a,b)=>evMs(b)-evMs(a));
-  return `<h1>Money</h1><p class="sub">Cash, deals, and how close we are to the next tier.</p>
-    <div class="columns"><div class="head"><div class="big">${members}<small>${members===1?'member':'members'}</small></div>
-      <div class="next">${curIdx<0?'<b>All six tiers unlocked.</b>':`<b>${cur.n-members} to go</b> to ${esc(cur.name)} (${cur.n})`}</div></div>
-      <div class="basalt">${TIERS.map((t,i)=>{ const f=Math.min(1,members/t.n); return `<div class="pillar ${f>=1?'done':''} ${t===cur&&curIdx>=0?'cur':''}" style="height:${34+i*13}%" title="${esc(t.name)}"><div class="fill" style="height:${Math.max(f*100,f>0?3:0)}%"></div></div>`; }).join('')}</div>
+  return `<h1>Money</h1><p class="sub">Monthly memberships, cash, and how close we are to the next tier.</p>
+    <div class="columns"><div class="head"><div class="big">${n}<small>${n===1?'member':'members'}</small></div>
+      <div class="next">${curIdx<0?'<b>All six tiers unlocked.</b>':`<b>${cur.n-n} to go</b> to ${esc(cur.name)} (${cur.n})`}<br>${money(mrr())}/month recurring</div></div>
+      <div class="basalt">${TIERS.map((t,i)=>{ const f=Math.min(1,n/t.n); return `<div class="pillar ${f>=1?'done':''} ${t===cur&&curIdx>=0?'cur':''}" style="height:${34+i*13}%"><div class="fill" style="height:${Math.max(f*100,f>0?3:0)}%"></div></div>`; }).join('')}</div>
       <div class="plabels">${TIERS.map(t=>`<div><b>${t.n.toLocaleString()}</b>${esc(t.name)}</div>`).join('')}</div></div>
     <div class="stats">
-      <div class="stat"><div class="v">${money(collected)}</div><div class="k">Cash collected</div></div>
-      <div class="stat"><div class="v">${money(contracted)}</div><div class="k">Contracted</div></div>
-      <div class="stat"><div class="v">${money(contracted-collected)}</div><div class="k">Still owed on plans</div></div>
-      <div class="stat"><div class="v">${members}</div><div class="k">Deals closed</div></div>
-      <div class="stat"><div class="v">${money(members?contracted/members:0)}</div><div class="k">Average deal</div></div></div>
-    <h2>How people are buying</h2>
-    <div class="two">${split('Commitment',six,'6 months',members-six,'12 months')}${split('Payment',full,'Paid in full',members-full,'Payment plan')}</div>
+      <div class="stat"><div class="v">${money(mrr())}</div><div class="k">Monthly recurring revenue</div></div>
+      <div class="stat"><div class="v">${money(cashMonth)}</div><div class="k">Cash collected this month</div></div>
+      <div class="stat"><div class="v">${money(cashAll)}</div><div class="k">Cash collected all time</div></div>
+      <div class="stat"><div class="v">${joinedM}</div><div class="k">New members this month</div></div>
+      <div class="stat"><div class="v">${upM}</div><div class="k">Upgrades this month</div></div>
+      <div class="stat"><div class="v">${cancM}</div><div class="k">Cancellations this month</div></div></div>
+    <h2>Members by tier</h2>
+    <div class="split"><div class="track">${n?`<div class="a" style="width:${pct(base,n)}%"></div><div class="b" style="width:${pct(prem,n)}%"></div>`:''}</div>
+      <div class="legend"><span><span class="dot" style="background:var(--moss)"></span> Base · ${base} · ${money(base?mem.filter(c=>c.membership.tier==='base').reduce((a,c)=>a+c.membership.price,0):0)}/mo</span><span><span class="dot" style="background:var(--ochre)"></span> Premium · ${prem} · ${money(mem.filter(c=>c.membership.tier==='premium').reduce((a,c)=>a+c.membership.price,0))}/mo</span></div></div>
     <div class="two" style="margin-top:12px">
-      <div class="split funnel"><b>Funnel</b><div style="margin-top:8px">${order.map(id=>{const n=reached(id);return `<div class="fr"><span>${esc(stage(id).label)}</span><div class="fb" style="width:${Math.max(2,n/top*100)}%"></div><span class="muted">${n}</span></div>`;}).join('')}</div></div>
-      <div class="split"><b>Owed on payment plans</b>${owedList.length?`<div class="list" style="margin-top:10px">${owedList.map(c=>contactRow(c, money(paid(c))+' paid of '+money(c.deal.price)+' · '+money(owed(c))+' owed')).join('')}</div>`:'<p class="muted">Nothing outstanding.</p>'}</div></div>
+      <div class="split funnel"><b>Funnel</b><div style="margin-top:8px">${order.map(id=>{const k=reached(id);return `<div class="fr"><span>${esc(id==='base'?'Member':stage(id).label)}</span><div class="fb" style="width:${Math.max(2,k/top*100)}%"></div><span class="muted">${k}</span></div>`;}).join('')}</div></div>
+      <div class="split"><b>No payment logged this month</b>${unpaid.length?`<div class="list" style="margin-top:10px">${unpaid.map(c=>contactRow(c, TIERS_PLAN[c.membership.tier].label+' · '+money(c.membership.price)+'/month','', 'client')).join('')}</div>`:'<p class="muted">Everyone is logged for this month.</p>'}</div></div>
     <h2>By event</h2>
-    ${evs.length?`<div class="box scrollx" style="padding:6px 8px"><table class="table"><thead><tr><th>Event</th><th>Signed up</th><th>Attended</th><th>Applied</th><th>Sold</th><th>Collected</th></tr></thead><tbody>
-      ${evs.map(e=>{const s=evStats(e);return `<tr data-act="event" data-v="${e.id}" style="cursor:pointer"><td><b>${esc(e.name)}</b><div class="muted" style="font-size:12px">${esc(fmtDate(evMs(e)))}</div></td><td>${s.reg}</td><td>${s.att}${s.reg?' <span class="muted">('+pct(s.att,s.reg)+'%)</span>':''}</td><td>${s.app}</td><td>${s.sold}</td><td>${money(s.cash)}</td></tr>`;}).join('')}
+    ${evs.length?`<div class="box scrollx" style="padding:6px 8px"><table class="table"><thead><tr><th>Event</th><th>Invited</th><th>RSVP'd</th><th>Showed</th><th>Participated</th><th>Joined</th><th>New MRR</th></tr></thead><tbody>
+      ${evs.map(e=>{const s=evStats(e);return `<tr data-act="event" data-v="${e.id}" style="cursor:pointer"><td><b>${esc(e.name)}</b><div class="muted" style="font-size:12px">${esc(evType(e).label)} · ${esc(fmtDate(evMs(e)))}</div></td><td>${s.inv}</td><td>${s.rsvp}</td><td>${s.showed}${s.inv?' <span class="muted">('+pct(s.showed,s.inv)+'%)</span>':''}</td><td>${s.part}</td><td>${s.joined}</td><td>${money(s.mrr)}</td></tr>`;}).join('')}
     </tbody></table></div>`:'<p class="muted">Past events show their numbers here.</p>'}`;
 }
 
@@ -1116,47 +1093,40 @@ function viewInsights(){
   const shown = S.tag==='all' ? notes : notes.filter(n=>n.tag===S.tag);
   return `<h1>Insights</h1><p class="sub">Every objection, question, struggle and win across all contacts. The content idea bank.</p>
     <div class="bar">${[['all','All',notes.length],...INSIGHT_TAGS.map(k=>[k,TAGS[k],counts[k]||0])].map(([k,l,n])=>`<button class="btn sm ${S.tag===k?'':'ghost'}" data-act="tag" data-v="${k}">${esc(l)} · ${n}</button>`).join('')}</div>
-    ${shown.length?shown.map(n=>`<div class="note"><div class="nt"><span><span class="chip">${esc(TAGS[n.tag])}</span> ${esc(fmtDate(n.at))} · ${esc(n.by)}</span><a href="#" data-act="open" data-v="${n.c.id}">${esc(n.c.name)}</a></div>${esc(n.body)}</div>`).join('')
-      :'<div class="empty">Nothing tagged yet. Tag a note as an objection, question, struggle or win and it lands here.</div>'}`;
+    ${shown.length?shown.map(n=>`<div class="note"><div class="nt"><span><span class="chip">${esc(TAGS[n.tag])}</span> ${esc(fmtDate(n.at))} · ${esc(n.by)}</span><a href="#" data-act="open" data-v="${n.c.id}">${esc(n.c.name)}</a></div>${esc(n.body)}</div>`).join(''):'<div class="empty">Nothing tagged yet.</div>'}`;
 }
 
 // ---- Settings ----
 function viewSettings(){
-  return `<h1>Settings</h1><p class="sub">Form sync, backups and test data.</p>
-    <h2>Form sync</h2><div class="box"><p style="margin-top:0">${syncChip()}</p>
-      <p class="muted" style="margin-bottom:0">${esc(SYNC.msg||'Pulls every submission from the application, the onboarding workbook, and each event sign-up form on the Events page. Runs when you log in, or tap Sync.')}</p></div>
+  return `<h1>Settings</h1><p class="sub">Sync, backups and test data.</p>
+    <h2>Sync</h2><div class="box"><p style="margin-top:0">${syncChip()}</p><p class="muted" style="margin-bottom:0">${esc(SYNC.msg||'Pulls JotForm submissions (application, onboarding, and each event form) and Cal.com bookings. Runs on login, or tap Sync.')}</p></div>
     <div class="list">${[['Program application',FORMS.application],['Onboarding workbook',FORMS.onboarding],...Store.events().filter(e=>e.form_url&&!e.demo).map(e=>['Sign-up: '+e.name,e.form_url])]
       .map(([n,u])=>`<div class="row" style="cursor:default"><div class="grow"><div class="nm">${esc(n)}</div><div class="meta">${esc(u)}</div></div><a class="btn sm ghost" href="${esc(u)}" target="_blank" rel="noopener">Open</a></div>`).join('')}</div>
-    <h2>Back up</h2><p class="muted">Download everything. Do this before any big change.</p>
-    <div class="bar"><button class="btn ghost" data-act="csv">Download CSV</button><button class="btn ghost" data-act="json">Download full backup (JSON)</button></div>
-    <h2>Test data</h2><p class="muted">Test contacts and test events are marked "Test". Hide them with the switch in the yellow bar. Reset puts them back as they started, and leaves real sign-ups alone.</p>
+    <h2>Back up</h2><div class="bar"><button class="btn ghost" data-act="csv">Download CSV</button><button class="btn ghost" data-act="json">Download full backup (JSON)</button></div>
+    <h2>Test data</h2><p class="muted">Test contacts and events are marked "Test". Hide them with the switch in the yellow bar. Reset restores them and leaves real people alone.</p>
     <button class="btn danger" data-act="reset">Reset test data</button>`;
 }
 
 /* ---------- 9. RECORDS ---------- */
 function journeyPath(c){
-  const ci = csIdx(c.cs_stage), si = sIdx(c.sales_stage);
-  const steps = [
-    ['Signed up', c.events.length>0 || si>=sIdx('registered')],
-    ['Attended', c.events.some(x=>x.attended===true) || si>=sIdx('attended')],
-    ['Applied', hasSub(c,'application') || si>=sIdx('applied')],
-    ['Sales call', !!(c.call&&c.call.at) || si>=sIdx('call')],
-    ['Sold', c.sales_stage==='sold'],
-    ['Workbook', hasSub(c,'onboarding') || ci>=csIdx('workbook')],
-    ['Onboarded', ci>=csIdx('onb_call')],
-    ['Active', ['active','completed'].includes(c.cs_stage)]];
+  const si = sIdx(c.sales_stage), ci = csIdx(c.cs_stage);
+  const steps = [['Invited', c.events.length>0||si>=sIdx('invited')], ['Showed up', c.events.some(x=>x.showed)||si>=sIdx('showed')],
+    ['Engaged', c.events.some(x=>x.participated)||si>=sIdx('engaged')], ['Applied', hasSub(c,'application')||si>=sIdx('applied')],
+    ['Member', !!c.membership], ['Workbook', hasSub(c,'onboarding')||ci>=csIdx('workbook')], ['Onboarded', ci>=csIdx('onb_call')], ['Active', ['active','completed'].includes(c.cs_stage)]];
   const last = steps.map(s=>s[1]).lastIndexOf(true);
   return `<div class="path">${steps.map(([l,on],i)=>`<div class="st ${on?'on':''} ${i===last?'now':''}"><i></i>${l}</div>`).join('')}</div>`;
 }
 function timeline(c){
-  const it = [];
-  it.push({at:c.created_at, ms:true, h:'First contact', d:c.source+(c.hot_button?' · '+c.hot_button:'')});
+  const it = [{at:c.created_at, ms:true, h:'First contact · '+c.source, d:c.origin_note}];
   c.events.forEach(x=>{ const e = Store.getE(x.id); if(!e) return;
-    it.push({at:x.at, ms:true, h:'Signed up: '+e.name});
-    if(x.attended!==null) it.push({at:evMs(e), ms:x.attended, h:(x.attended?'Attended: ':'Missed: ')+e.name}); });
+    it.push({at:x.invited_at, h:'Invited: '+e.name});
+    if(x.rsvp_at) it.push({at:x.rsvp_at, h:"RSVP'd: "+e.name});
+    if(x.showed!==null) it.push({at:evMs(e), ms:x.showed, h:(x.showed?(x.participated?'Showed up and participated: ':'Showed up: '):'Missed: ')+e.name}); });
   c.submissions.filter(s=>s.type!=='event').forEach(s=>it.push({at:s.at, ms:true, h:s.type==='application'?'Applied':'Onboarding workbook in'}));
-  if(c.call&&c.call.at) it.push({at:c.call.at, ms:true, h:'Sales call', d:(CALL_OUTCOMES.find(o=>o.id===c.call.outcome)||{label:'Booked'}).label});
-  if(c.deal) it.push({at:c.deal.at, ms:true, h:'Joined: '+PLANS[c.deal.plan].label, d:money(c.deal.price)+', '+(c.deal.pay==='full'?'paid in full':'payment plan')});
+  if(c.call&&c.call.at) it.push({at:c.call.at, ms:true, h:'Call', d:(CALL_OUTCOMES.find(o=>o.id===c.call.outcome)||{label:'Booked'}).label});
+  if(c.membership){ it.push({at:c.membership.start, ms:true, h:'Joined: '+TIERS_PLAN[c.membership.tier==='premium'&&c.membership.upgraded_at?'base':c.membership.tier].label});
+    if(c.membership.upgraded_at) it.push({at:c.membership.upgraded_at, ms:true, h:'Upgraded to Premium'});
+    if(c.membership.cancelled_at) it.push({at:c.membership.cancelled_at, ms:true, h:'Cancelled membership'}); }
   if(c.onb_sent_at) it.push({at:c.onb_sent_at, h:'Onboarding workbook sent'});
   c.payments.forEach(p=>it.push({at:p.at, h:'Payment '+money(p.amount), d:p.method}));
   c.notes.forEach(n=>it.push({at:n.at, nt:true, h:TAGS[n.tag]+' · '+n.by, d:n.body}));
@@ -1167,105 +1137,113 @@ function timeline(c){
 function snapshot(c){
   const rows = [['Struggling with', answer(c,'application',/struggling/i)], ['A win in 12 months', answer(c,'application',/12 months/i)],
     ['Why they applied', answer(c,'application',/made you want to apply/i)], ['Works in', answer(c,'application',/work or business/i)],
-    ['Income', answer(c,'application',/monthly income/i)], ['Decision', answer(c,'application',/anyone else involved/i)],
     ['Wants to change', answer(c,null,/area/i)]].filter(r=>r[1]);
   return rows.length ? `<dl class="snap">${rows.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : '';
 }
+function eventSteps(c, x){
+  return `<span class="steps"><button class="on" title="Invited ${esc(ago(x.invited_at))}">Invited</button>
+    <button class="${x.rsvp_at?'on':''}" data-act="step" data-v="${c.id}" data-e="${x.id}" data-s="rsvp">RSVP</button>
+    <button class="${x.showed===true?'on':''}" data-act="step" data-v="${c.id}" data-e="${x.id}" data-s="showed">Showed</button>
+    <button class="${x.participated?'on':''}" data-act="step" data-v="${c.id}" data-e="${x.id}" data-s="part">Participated</button>
+    <button class="${x.showed===false?'no':''}" data-act="step" data-v="${c.id}" data-e="${x.id}" data-s="missed">Missed</button></span>`;
+}
 
-// ---- Contact panel (sales view of any person) ----
+// ---- Contact panel ----
 function viewPanel(){
   const c = Store.getC(S.open); if(!c) return '';
-  const s = stage(c.sales_stage);
-  const tabs = [['details','Details'],['journey','Journey'],['forms','Forms'+(c.submissions.length?' · '+c.submissions.length:'')],['notes','Notes'+(c.notes.length?' · '+c.notes.length:'')],['money','Payments'],['activity','Activity']];
-  const body = {details:panelDetails, journey:c=>journeyPath(c)+timeline(c), forms:panelForms, notes:panelNotes, money:panelMoney, activity:panelActivity}[S.ptab](c);
+  const tabs = [['details','Details'],['events','Events'+(c.events.length?' · '+c.events.length:'')],['journey','Journey'],['forms','Forms'+(c.submissions.length?' · '+c.submissions.length:'')],['notes','Notes'+(c.notes.length?' · '+c.notes.length:'')],['membership','Membership'],['activity','Activity']];
+  const body = {details:panelDetails, events:panelEvents, journey:c=>journeyPath(c)+timeline(c), forms:panelForms, notes:panelNotes, membership:panelMembership, activity:panelActivity}[S.ptab](c);
   const m = nextMove(c);
-  return `<div class="scrim" data-act="close"></div>
-  <aside class="panel" role="dialog" aria-label="${esc(c.name)}"><div class="ph">
+  return `<div class="scrim" data-act="close"></div><aside class="panel" role="dialog" aria-label="${esc(c.name)}"><div class="ph">
     <div class="top"><h2>${esc(c.name)}</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
-    <div class="chips"><span class="chip" style="background:${s.c};color:#fff">${esc(s.label)}</span>${c.cs_stage?`<span class="chip moss">${esc(csStage(c.cs_stage).label)}</span>`:''}${chipsFor(c)}
-      ${c.hot_button?`<span class="chip ochre">${esc(c.hot_button)}</span>`:''}<span class="chip">Last contact ${esc(ago(c.last_contacted))}</span>${c.archived?'<span class="chip rust">Archived</span>':''}</div>
-    ${m?`<div class="snap" style="margin-bottom:10px;padding:9px 12px;display:flex;gap:10px;align-items:center;justify-content:space-between"><span><b>Next:</b> ${esc(m.why)}</span>${m.tpl?`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="${m.tpl}">${esc(MSG[m.tpl].label)}</button>`:''}</div>`:''}
-    <div class="ctl"><select data-change="stage" aria-label="Sales stage">${SALES_STAGES.map(x=>`<option value="${x.id}" ${x.id===c.sales_stage?'selected':''}>${esc(x.label)}</option>`).join('')}</select>
-      ${c.sales_stage==='sold'?`<select data-change="cs" aria-label="Client stage"><option value="" disabled ${!c.cs_stage?'selected':''}>Client stage</option>${CS_STAGES.map(x=>`<option value="${x.id}" ${x.id===c.cs_stage?'selected':''}>${esc(x.label)}</option>`).join('')}</select>
+    <div class="chips">${stChip(c)}${c.membership?`<span class="chip ochre">${esc(TIERS_PLAN[c.membership.tier].label)} · week ${courseWeek(c)} of ${COURSE_WEEKS}${c.membership.status==='cancelled'?' · cancelled':''}</span>`:''}${chipsFor(c)}
+      ${c.location?`<span class="chip">${esc(c.location)}</span>`:''}<span class="chip">Last contact ${esc(ago(c.last_contacted))}</span>${c.archived?'<span class="chip rust">Archived</span>':''}</div>
+    ${c.origin_note?`<div class="origin"><b>How we met</b>${esc(c.origin_note)}</div>`:''}
+    <div style="margin-bottom:10px">${formChips(c)}</div>
+    ${m?`<div class="snap" style="margin-bottom:10px;padding:9px 12px;display:flex;gap:10px;align-items:center;justify-content:space-between"><span><b>Next:</b> ${esc(m.why)}</span>${m.tpl?`<button class="btn sm" data-act="${m.invite?'invitego':'wa'}" data-v="${c.id}" data-t="${m.tpl}" data-e="${m.ev?m.ev.id:''}">${esc(MSG[m.tpl].label)}</button>`:''}</div>`:''}
+    <div class="ctl"><select data-change="stage" aria-label="Stage">${SALES_STAGES.map(x=>`<option value="${x.id}" ${x.id===c.sales_stage?'selected':''}>${esc(x.label)}</option>`).join('')}</select>
+      ${c.membership?`<select data-change="cs" aria-label="Client stage"><option value="" disabled ${!c.cs_stage?'selected':''}>Client stage</option>${CS_STAGES.map(x=>`<option value="${x.id}" ${x.id===c.cs_stage?'selected':''}>${esc(x.label)}</option>`).join('')}</select>
         <button class="btn sm ghost" data-act="client" data-v="${c.id}">Client profile</button>`:''}
       <button class="btn sm ${c.serious?'ochre':'ghost'}" data-act="serious">${c.serious?'★ Serious':'☆ Mark serious'}</button></div>
-    <div class="acts">
-      ${c.whatsapp?`<button class="btn sm ghost" data-act="wa" data-v="${c.id}" data-t="plain">WhatsApp</button>`:''}
-      ${['lead','invited'].includes(c.sales_stage)?sendBtns(c,'event','Send event invite'):''}
-      ${!['sold','lost'].includes(c.sales_stage)&&!hasSub(c,'application')?sendBtns(c,'application','Send application'):''}
-      ${c.sales_stage==='sold'?sendBtns(c,'onboarding','Send onboarding'):''}
-      ${c.call&&c.call.meet&&c.call.at>=startToday()&&c.sales_stage!=='sold'?`<a class="btn sm" href="${esc(c.call.meet)}" target="_blank" rel="noopener">Join call · ${esc(fmtWhen(c.call.at))}</a>`:''}
-    </div>
+    <div class="acts">${c.whatsapp?`<button class="btn sm ghost" data-act="wa" data-v="${c.id}" data-t="plain">WhatsApp</button>`:''}
+      ${!c.membership&&c.sales_stage!=='lost'&&!hasSub(c,'application')?`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="application">Send application</button><button class="btn sm ghost" data-act="copylink" data-v="application">Copy application link</button>`:''}
+      ${c.membership?`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="onboarding">Send onboarding</button><button class="btn sm ghost" data-act="copylink" data-v="onboarding">Copy onboarding link</button>`:''}
+      ${c.call&&c.call.meet&&c.call.at>=startToday()&&c.call.outcome!=='cancelled'?`<a class="btn sm" href="${esc(c.call.meet)}" target="_blank" rel="noopener">Join call · ${esc(fmtWhen(c.call.at))}</a>`:''}</div>
     <div class="tabs">${tabs.map(([k,l])=>`<button class="${S.ptab===k?'on':''}" data-act="ptab" data-v="${k}">${l}</button>`).join('')}</div>
   </div><div class="pb">${body}</div></aside>`;
-}
-function sendBtns(c,type,label){
-  return `<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="${type}">${label}</button><button class="btn sm ghost" data-act="copylink" data-v="${type}">Copy ${{event:'invite',application:'application',onboarding:'onboarding'}[type]} link</button>`;
 }
 function field(c,k,label,type){ return `<label class="f">${label}<input data-field="${k}" type="${type||'text'}" value="${esc(c[k])}"></label>`; }
 function panelDetails(c){
   const callAt = c.call && c.call.at ? localISO(c.call.at).slice(0,16) : '';
-  return `${snapshot(c)}<div class="grid2">
-    ${field(c,'name','Name')}${field(c,'whatsapp','WhatsApp (with country code)','tel')}
-    ${field(c,'email','Email','email')}${field(c,'instagram','Instagram')}
-    ${field(c,'location','Based now')}
-    <label class="f">Source<select data-field="source">${SOURCES.map(x=>`<option ${x===c.source?'selected':''}>${x}</option>`).join('')}</select></label>
-    <label class="f">Owner (who reaches out)<select data-field="owner">${Object.entries(ROLES).map(([k,r])=>`<option value="${k}" ${k===c.owner?'selected':''}>${esc(r.label)}</option>`).join('')}</select></label>
-    <label class="f">Event<select data-act-none data-evpick><option value="">Add to an event...</option>${liveEvents().filter(e=>!c.events.some(x=>x.id===e.id)).map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
-  </div>
-  ${c.events.length?`<p class="muted" style="margin-top:-4px;font-size:13px">Events: ${c.events.map(x=>{const e=Store.getE(x.id);return e?esc(e.name)+(x.attended===true?' (attended)':x.attended===false?' (missed)':''):'';}).filter(Boolean).join(', ')}</p>`:''}
-  ${field(c,'hot_button','Hot button (what they really want)')}
-  <div class="grid2">${field(c,'next_action','Next action / follow-up message')}${field(c,'next_date','Next action / follow-up date','date')}</div>
-  <h2 style="margin-top:8px">Sales call</h2>
+  return `${snapshot(c)}
+  <label class="f">How we met / the conversation<textarea data-field="origin_note" placeholder="Where you met, what you talked about, what they care about. E.g. met at the café, he's a coach, we talked surfing.">${esc(c.origin_note)}</textarea></label>
   <div class="grid2">
-    <label class="f">Date and time<input data-callf="at" type="datetime-local" value="${callAt}"></label>
-    <label class="f">Outcome<select data-callf="outcome">${CALL_OUTCOMES.map(o=>`<option value="${o.id}" ${(c.call&&c.call.outcome||'booked')===o.id?'selected':''}>${o.label}</option>`).join('')}</select></label>
+    ${field(c,'name','Name')}<label class="f">Lead source<select data-field="source">${SOURCES.map(x=>`<option ${x===c.source?'selected':''}>${x}</option>`).join('')}</select></label>
+    ${field(c,'whatsapp','WhatsApp (with country code)','tel')}${field(c,'instagram','Instagram')}
+    ${field(c,'email','Email','email')}${field(c,'location','Location')}
+    <label class="f">Owner<select data-field="owner">${Object.entries(ROLES).map(([k,r])=>`<option value="${k}" ${k===c.owner?'selected':''}>${esc(r.label)}</option>`).join('')}</select></label>
+    ${field(c,'hot_button','Hot button (what they really want)')}
+    ${field(c,'next_action','Next action')}${field(c,'next_date','Next action date','date')}
   </div>
+  <h2 style="margin-top:8px">Call</h2>
+  <div class="grid2"><label class="f">Date and time<input data-callf="at" type="datetime-local" value="${callAt}"></label>
+    <label class="f">Outcome<select data-callf="outcome">${CALL_OUTCOMES.map(o=>`<option value="${o.id}" ${(c.call&&c.call.outcome||'booked')===o.id?'selected':''}>${o.label}</option>`).join('')}</select></label></div>
   <label class="f">Google Meet link<input data-callf="meet" type="url" value="${esc(c.call&&c.call.meet||'')}" placeholder="Fills in from Cal.com bookings"></label>
   <h2 style="margin-top:8px">Tracking</h2>
-  <div class="grid2">
-    <label class="f">Gender<select data-field="gender">${['','Female','Male','Other'].map(x=>`<option value="${x}" ${x===c.gender?'selected':''}>${x||'Not set'}</option>`).join('')}</select></label>
+  <div class="grid2"><label class="f">Gender<select data-field="gender">${['','Female','Male','Other'].map(x=>`<option value="${x}" ${x===c.gender?'selected':''}>${x||'Not set'}</option>`).join('')}</select></label>
     ${field(c,'meeting_country','Meeting country')}${field(c,'home_country','Home country')}${field(c,'secondary_country','Secondary country')}
-    ${field(c,'initial_contact','Initial contact','date')}${field(c,'message_result','Message result')}
-  </div>
-  <div style="margin-top:20px"><button class="btn danger sm" data-act="archive">${c.archived?'Restore contact':'Archive contact'}</button>
-  <p class="muted" style="font-size:13px">Archiving hides a contact. Nothing is ever deleted.</p></div>`;
+    ${field(c,'initial_contact','Initial contact','date')}${field(c,'message_result','Message result')}</div>
+  <div style="margin-top:20px"><button class="btn danger sm" data-act="archive">${c.archived?'Restore contact':'Archive contact'}</button><p class="muted" style="font-size:13px">Archiving hides a contact. Nothing is ever deleted.</p></div>`;
+}
+function panelEvents(c){
+  const avail = upcoming().filter(e=>!recOf(c,e.id));
+  const recs = c.events.map(x=>({x, e:Store.getE(x.id)})).filter(r=>r.e).sort((a,b)=>evMs(b.e)-evMs(a.e));
+  return `<div class="box" style="background:#fff"><h3>Invite to an event</h3>${avail.length?`<div class="bar" style="margin:0"><select id="invpick" style="width:auto;flex:1">${avail.map(e=>`<option value="${e.id}">${esc(evType(e).label)}: ${esc(e.name)} · ${esc(fmtDate(evMs(e)))}</option>`).join('')}</select>
+      <button class="btn sm" data-act="invitepick" data-v="${c.id}" data-send="1">Invite on WhatsApp</button><button class="btn sm ghost" data-act="invitepick" data-v="${c.id}">Mark invited</button></div>`:'<p class="muted" style="margin:0">No upcoming events they aren\'t already invited to.</p>'}</div>
+    ${recs.length?`<div class="list">${recs.map(({x,e})=>`<div class="row" style="cursor:default;flex-wrap:wrap"><div class="grow"><div class="nm">${esc(e.name)}</div><div class="meta">${esc(evType(e).label)} · ${esc(fmtWhen(evMs(e)))}</div></div>${eventSteps(c,x)}</div>`).join('')}</div>`:'<p class="muted">Not invited to anything yet.</p>'}`;
 }
 function panelForms(c){
-  if(!c.submissions.length) return '<div class="empty">No forms in yet. Their answers land here as soon as they submit.</div>';
-  const names = {event:'Event sign-up', application:'Program application', onboarding:'Onboarding workbook'};
+  if(!c.submissions.length) return '<div class="empty">No forms in yet. Answers land here as soon as they submit.</div>';
+  const names = {event:'Event sign-up', application:'Application', onboarding:'Onboarding workbook'};
   return [...c.submissions].sort((a,b)=>b.at-a.at).map(s=>{ const e = s.event_id && Store.getE(s.event_id);
-    return `<div class="qa"><div class="qh"><span>${names[s.type]}${e?': '+esc(e.name):''}</span><span class="muted" style="font-weight:500">${fmtWhen(s.at)}</span></div>
-    <dl>${s.answers.map(([q,a])=>`<dt>${esc(q)}</dt><dd>${esc(a)||'<span class="muted">No answer</span>'}</dd>`).join('')}</dl></div>`; }).join('');
+    return `<div class="qa"><div class="qh"><span>${names[s.type]}${e?': '+esc(e.name):''}</span><span class="muted" style="font-weight:500">${fmtWhen(s.at)}</span></div><dl>${s.answers.map(([q,a])=>`<dt>${esc(q)}</dt><dd>${esc(a)}</dd>`).join('')}</dl></div>`; }).join('');
 }
-function noteComposer(def){
+function noteComposer(def, cid){
   return `<label class="f">New note<textarea id="nbody" placeholder="What happened? What did you learn? Use their exact words where you can."></textarea></label>
-    <div class="bar"><select id="ntag" style="width:auto">${Object.entries(TAGS).map(([k,l])=>`<option value="${k}" ${k===def?'selected':''}>${esc(l)}</option>`).join('')}</select><button class="btn" data-act="addnote">Add note</button></div>`;
+    <div class="bar"><select id="ntag" style="width:auto">${Object.entries(TAGS).map(([k,l])=>`<option value="${k}" ${k===def?'selected':''}>${esc(l)}</option>`).join('')}</select><button class="btn" data-act="addnote" ${cid?`data-cid="${cid}"`:''}>Add note</button></div>`;
 }
-function panelNotes(c){
-  return noteComposer('note') + (c.notes.map(n=>`<div class="note"><div class="nt"><span>${n.tag!=='note'?`<span class="chip">${esc(TAGS[n.tag])}</span> `:''}${esc(n.by)}</span><span>${esc(fmtDate(n.at))}</span></div>${esc(n.body)}</div>`).join('')||'<p class="muted">No notes yet.</p>');
-}
-function panelMoney(c){
-  if(!c.deal){
-    return `<p class="muted">No deal yet. When they say yes, close it here. This marks them Sold and adds them to the member count.</p>
-      <b>Program</b><div class="seg">${Object.entries(PLANS).map(([k,p])=>`<button class="${S.closePlan===k?'on':''}" data-act="cplan" data-v="${k}">${p.label} · ${money(p.price)}</button>`).join('')}</div>
-      <label class="f">Price (change it for a custom deal)<input id="cprice" type="number" value="${PLANS[S.closePlan].price}"></label>
-      <b>How they're paying</b><div class="seg"><button class="${S.closePay==='full'?'on':''}" data-act="cpay" data-v="full">Paid in full</button><button class="${S.closePay==='plan'?'on':''}" data-act="cpay" data-v="plan">Payment plan</button></div>
-      <button class="btn ochre" data-act="closedeal">Close the deal</button>`;
+function panelNotes(c){ return noteComposer('note') + (c.notes.map(n=>`<div class="note"><div class="nt"><span>${n.tag!=='note'?`<span class="chip">${esc(TAGS[n.tag])}</span> `:''}${esc(n.by)}</span><span>${esc(fmtDate(n.at))}</span></div>${esc(n.body)}</div>`).join('')||'<p class="muted">No notes yet.</p>'); }
+function panelMembership(c){
+  const m = c.membership;
+  if(!m || m.status==='cancelled'){
+    const t = S.mTier, price = TIERS_PLAN[t].price;
+    return `${m?`<div class="snap"><b>Cancelled ${esc(fmtDate(m.cancelled_at))}.</b> Was ${esc(TIERS_PLAN[m.tier].label)} at ${money(m.price)}/month. <button class="btn sm" data-act="restart">Restart membership</button></div>`:''}
+      <p class="muted">${m?'Or start a new membership:':'When they join, start their membership here. This counts them as a member and starts their 12 weeks.'}</p>
+      <div class="seg">${Object.entries(TIERS_PLAN).map(([k,p])=>`<button class="${t===k?'on':''}" data-act="mtier" data-v="${k}">${p.label}${p.price?' · '+money(p.price)+'/mo':''}</button>`).join('')}</div>
+      <p class="muted" style="margin-top:-4px;font-size:13px">${esc(TIERS_PLAN[t].includes)}</p>
+      <div class="grid2"><label class="f">Price per month<input id="mprice" type="number" value="${price||''}" placeholder="${price?'':'Set the Premium price'}"></label>
+        <label class="f">Start date<input id="mstart" type="date" value="${todayStr()}"></label></div>
+      <label class="f">Course<select id="mcourse">${COURSES.map(x=>`<option>${esc(x)}</option>`).join('')}</select></label>
+      <button class="btn ochre" data-act="startmem">Start membership</button>`;
   }
-  const p = paid(c), o = owed(c);
-  return `<div class="money3"><div class="stat"><div class="v">${money(c.deal.price)}</div><div class="k">${esc(PLANS[c.deal.plan].label)}, ${c.deal.pay==='full'?'in full':'on a plan'}</div></div>
-      <div class="stat"><div class="v">${money(p)}</div><div class="k">Collected</div></div><div class="stat"><div class="v">${money(o)}</div><div class="k">Still owed</div></div></div>
-    <div class="prog"><i style="width:${Math.min(100,Math.round(p/c.deal.price*100))}%"></i></div>
-    <h2 style="margin-top:0">Log a payment</h2>
-    <div class="grid2"><label class="f">Amount<input id="pamt" type="number" value="${o||''}"></label><label class="f">Date<input id="pdate" type="date" value="${todayStr()}"></label></div>
-    <label class="f">Method<select id="pmeth">${METHODS.map(m=>`<option>${m}</option>`).join('')}</select></label>
+  const wk = courseWeek(c);
+  return `<div class="money3"><div class="stat"><div class="v">${money(m.price)}</div><div class="k">${esc(TIERS_PLAN[m.tier].label)} per month</div></div>
+      <div class="stat"><div class="v">Week ${wk}</div><div class="k">of ${COURSE_WEEKS} · ${esc(m.course)}</div></div>
+      <div class="stat"><div class="v">${money(totalPaid(c))}</div><div class="k">Paid since ${esc(fmtDate(m.start))}</div></div></div>
+    <div class="prog"><i style="width:${wk/COURSE_WEEKS*100}%"></i></div>
+    <p class="muted" style="margin-top:-6px">${paidThisMonth(c)?'Payment logged this month.':'No payment logged this month yet.'}</p>
+    <h2 style="margin-top:6px">Log a payment</h2>
+    <div class="grid2"><label class="f">Amount<input id="pamt" type="number" value="${m.price}"></label><label class="f">Date<input id="pdate" type="date" value="${todayStr()}"></label></div>
+    <label class="f">Method<select id="pmeth">${METHODS.map(x=>`<option>${x}</option>`).join('')}</select></label>
     <button class="btn" data-act="logpay">Log payment</button>
+    <h2>Change membership</h2>
+    <div class="bar">${m.tier==='base'?`<input id="upprice" type="number" placeholder="Premium price / month" style="max-width:200px" value="${TIERS_PLAN.premium.price||''}"><button class="btn sm ochre" data-act="upgrade">Upgrade to Premium</button>`:''}
+      <button class="btn sm danger" data-act="cancelmem">Cancel membership</button></div>
     <h2>Payments</h2>${c.payments.length?`<div class="list">${c.payments.map(x=>`<div class="row" style="cursor:default"><div class="grow"><div class="nm">${money(x.amount)}</div><div class="meta">${esc(fmtDate(x.at))} · ${esc(x.method)}</div></div></div>`).join('')}</div>`:'<p class="muted">No payments logged yet.</p>'}`;
 }
 function panelActivity(c){ return c.log.map(l=>`<div class="log"><b>${esc(l.body)}</b><div class="muted">${esc(l.by)} · ${esc(fmtWhen(l.at))}</div></div>`).join('') || '<p class="muted">No activity yet.</p>'; }
 
-// ---- Client profile (full page) ----
+// ---- Client profile ----
 function ratings(c){
   const raw = answer(c,'onboarding',/rate each area/i); if(!raw) return '';
   const pairs = [...raw.matchAll(/([A-Za-z][A-Za-z ,&]*?)\s*[:\-]?\s*(\d{1,2})(?!\d)/g)].map(m=>[m[1].replace(/^[,\s]+|[,\s]+$/g,''), Math.min(10,Number(m[2]))]).filter(p=>p[0]);
@@ -1274,22 +1252,21 @@ function ratings(c){
 }
 function viewClient(){
   const c = Store.getC(S.client); if(!c){ S.client=null; return viewClients(); }
-  const vis = [['Build', answer(c,'onboarding',/BUILD/)], ['Experience', answer(c,'onboarding',/EXPERIENCE/)], ['Become', answer(c,'onboarding',/BECOME/)],
-    ['Why it matters', answer(c,'onboarding',/why does this vision/i)], ['The gap', answer(c,'onboarding',/gap between/i)],
-    ['12-month win (application)', answer(c,'application',/12 months/i)], ['Holding them back', answer(c,'onboarding',/^Belief/i)]].filter(x=>x[1]);
+  const m = c.membership, ro = S.role==='brett';
+  const vis = [['Build',answer(c,'onboarding',/BUILD/)],['Experience',answer(c,'onboarding',/EXPERIENCE/)],['Become',answer(c,'onboarding',/BECOME/)],['Why it matters',answer(c,'onboarding',/why does this vision/i)],
+    ['The gap',answer(c,'onboarding',/gap between/i)],['Holding them back',answer(c,'onboarding',/^Belief/i)],['12-month win (application)',answer(c,'application',/12 months/i)]].filter(x=>x[1]);
   const acc = answer(c,'onboarding',/accountable/i);
-  const daysIn = c.deal ? daysSince(c.deal.at) : 0;
-  return `<button class="back" data-act="back">← Back to clients</button>
+  return `<button class="back" data-act="back">← Back</button>
     <div class="chero"><h1>${esc(c.name)}</h1>
-      <div class="meta"><span>Plan <b>${c.deal?esc(PLANS[c.deal.plan].label):'None'}</b></span><span>Day <b>${daysIn}</b></span><span>Paid <b>${money(paid(c))}</b>${owed(c)?' · '+money(owed(c))+' owed':''}</span><span>Last contact <b>${esc(ago(c.last_contacted))}</b></span>${acc?`<span>Accountability <b>${esc(acc)}</b></span>`:''}</div>
+      <div class="meta">${m?`<span><b>${esc(TIERS_PLAN[m.tier].label)}</b> · ${money(m.price)}/month</span><span>Week <b>${courseWeek(c)} of ${COURSE_WEEKS}</b></span><span>Started <b>${esc(fmtDate(m.start))}</b></span><span>This month <b>${paidThisMonth(c)?'paid':'not logged'}</b></span>`:''}
+        <span>Last contact <b>${esc(ago(c.last_contacted))}</b></span>${c.location?`<span>${esc(c.location)}</span>`:''}${acc?`<span>Accountability <b>${esc(acc)}</b></span>`:''}</div>
+      ${c.origin_note?`<div class="meta" style="margin-top:-8px">How we met: <b style="font-weight:500">${esc(c.origin_note)}</b></div>`:''}
       ${journeyPath(c)}
       <div class="acts" style="margin-top:12px">
         <select data-change="cs" data-cid="${c.id}" aria-label="Client stage"><option value="" disabled ${!c.cs_stage?'selected':''}>Client stage</option>${CS_STAGES.map(x=>`<option value="${x.id}" ${x.id===c.cs_stage?'selected':''}>${esc(x.label)}</option>`).join('')}</select>
-        ${c.whatsapp?`<button class="btn sm ochre" data-act="wa" data-v="${c.id}" data-t="checkin">WhatsApp check-in</button>`:''}
-        ${!c.cs_stage?`<button class="btn sm ochre" data-act="wa" data-v="${c.id}" data-t="onboarding">Send onboarding</button>`:''}
-        ${c.cs_stage==='onb_sent'?`<button class="btn sm ghost" data-act="wa" data-v="${c.id}" data-t="wb_chase">Nudge on workbook</button>`:''}
-        <button class="btn sm ghost" data-act="open" data-v="${c.id}">Full record</button>
-      </div></div>
+        ${!ro&&c.whatsapp?`<button class="btn sm ochre" data-act="wa" data-v="${c.id}" data-t="checkin">WhatsApp check-in</button>`:''}
+        ${!ro&&!c.cs_stage&&m?`<button class="btn sm ochre" data-act="wa" data-v="${c.id}" data-t="onboarding">Send onboarding</button>`:''}
+        <button class="btn sm ghost" data-act="open" data-v="${c.id}">Full record</button></div></div>
     <div class="cgrid"><div>
       <div class="box"><h3>Working on</h3>
         ${c.goals.map(g=>`<div class="goal ${g.done?'done':''}"><input type="checkbox" ${g.done?'checked':''} data-act="goal" data-v="${g.id}" data-cid="${c.id}" aria-label="Done"><span>${esc(g.text)}</span></div>`).join('')||'<p class="muted" style="margin:0 0 6px">No goals yet. Set two or three from the onboarding call.</p>'}
@@ -1297,9 +1274,8 @@ function viewClient(){
       <div class="box"><h3>Their vision</h3>${vis.length?`<div class="vision">${vis.map(([k,v])=>`<span class="lbl">${esc(k)}</span>${esc(v)}`).join('')}</div>`:'<p class="muted" style="margin:0">Shows here once the onboarding workbook is in.</p>'}</div>
       ${ratings(c)}
     </div><div>
-      <div class="box"><h3>Log a check-in or note</h3>${noteComposer('checkin').replace('data-act="addnote"','data-act="addnote" data-cid="'+c.id+'"')}</div>
-      <div class="box"><h3>Timeline</h3>${timeline(c)}</div>
-    </div></div>`;
+      <div class="box"><h3>Log a check-in or note</h3>${noteComposer(ro?'note':'checkin', c.id)}</div>
+      <div class="box"><h3>Timeline</h3>${timeline(c)}</div></div></div>`;
 }
 
 // ---- Event page ----
@@ -1307,52 +1283,52 @@ function viewEvent(){
   const e = Store.getE(S.event); if(!e){ S.event=null; return viewEvents(); }
   const s = evStats(e), ppl = eventPeople(e).sort((a,b)=>a.name.localeCompare(b.name)), past = evMs(e) < Date.now();
   const ef = (k,l,t) => `<label class="f">${l}<input data-efield="${k}" type="${t||'text'}" value="${esc(e[k])}"></label>`;
+  const notInvited = live().filter(c=>!recOf(c,e.id) && !isMember(c) && c.sales_stage!=='lost').sort((a,b)=>a.name.localeCompare(b.name));
   return `<button class="back" data-act="back">← Back to events</button>
-    <div class="chero"><div class="when" style="color:var(--ochre-soft);font-weight:600;font-size:13px">${past?'Past event':esc(until(evMs(e)))} · ${esc(evWhen(e))}${e.time_note?' · '+esc(e.time_note):''}</div>
+    <div class="chero"><div style="color:var(--ochre-soft);font-weight:600;font-size:13px"><span class="pill-type">${esc(evType(e).label)}</span> · ${past?'Past':esc(until(evMs(e)))} · ${esc(evWhen(e))}${e.time_note?' · '+esc(e.time_note):''}${e.location?' · '+esc(e.location):''}</div>
       <h1>${esc(e.name)}</h1>
-      <div class="evnums" style="margin-bottom:6px"><div><b style="color:#fff">${s.reg}</b>signed up</div><div><b style="color:#fff">${s.att}</b>attended${s.reg?' ('+Math.round(s.att/s.reg*100)+'%)':''}</div><div><b style="color:#fff">${s.app}</b>applied</div><div><b style="color:#fff">${s.sold}</b>sold</div><div><b style="color:#fff">${money(s.cash)}</b>collected</div></div>
+      <div class="evnums" style="margin-bottom:6px">${[['inv','invited'],['rsvp',"RSVP'd"],['showed','showed up'],['part','participated'],['joined','joined']].map(([k,l])=>`<div><b style="color:#fff">${s[k]}</b>${l}</div>`).join('')}<div><b style="color:#fff">${money(s.mrr)}</b>new MRR</div></div>
       <div class="acts">${e.wa_link?`<a class="btn sm ochre" href="${esc(e.wa_link)}" target="_blank" rel="noopener">WhatsApp group</a>`:''}
-        ${e.form_url?`<button class="btn sm ghost" data-act="copyurl" data-u="${esc(e.form_url)}">Copy sign-up link</button><a class="btn sm ghost" href="${esc(e.form_url)}" target="_blank" rel="noopener">Open form</a>`:''}
-        ${e.recording?`<a class="btn sm ghost" href="${esc(e.recording)}" target="_blank" rel="noopener">Recording</a>`:''}</div></div>
+        ${e.form_url?`<button class="btn sm ghost" data-act="copyurl" data-u="${esc(e.form_url)}">Copy sign-up link</button>`:''}${e.recording?`<a class="btn sm ghost" href="${esc(e.recording)}" target="_blank" rel="noopener">Recording</a>`:''}</div></div>
     <div class="cgrid"><div>
-      <div class="box"><h3>Signed up (${ppl.length})</h3>
-        ${ppl.length?`<div class="list" style="background:#fff">${ppl.map(c=>{ const x = c.events.find(y=>y.id===e.id);
-          return `<div class="row" data-act="open" data-v="${c.id}"><span class="dot" style="background:${stage(c.sales_stage).c}"></span>
-            <div class="grow"><div class="nm">${esc(c.name)}</div><div class="meta">${esc(stage(c.sales_stage).label)} · ${esc(latestKey(c,'ready')||'no answer')}${latestKey(c,'budget')?' · '+esc(latestKey(c,'budget')):''}</div></div>
-            <div class="r"><span class="att"><button class="${x.attended===true?'yes':''}" data-act="attend" data-v="${c.id}" data-y="1" title="Attended">Came</button><button class="${x.attended===false?'no':''}" data-act="attend" data-v="${c.id}" data-y="0" title="Missed">Missed</button></span>
-            ${past?(x.attended&&!hasSub(c,'application')&&c.sales_stage!=='sold'?`<button class="btn sm" data-act="wa" data-v="${c.id}" data-t="application">Send application</button>`:''):`<button class="btn sm ghost" data-act="wa" data-v="${c.id}" data-t="event_remind">Remind</button>`}</div></div>`; }).join('')}</div>`
-          :'<p class="muted" style="margin:0">No one yet. Sign-ups from this event\'s form land here after a sync.</p>'}
-        <p class="muted" style="font-size:13px;margin-bottom:0">After the event, tap Came or Missed for each person. "Came" moves them to Attended.</p></div>
+      ${!past?`<div class="box"><h3>Invite someone</h3>${notInvited.length?`<div class="bar" style="margin:0"><select id="evinv" style="flex:1;width:auto">${notInvited.map(c=>`<option value="${c.id}">${esc(c.name)} · ${esc(stage(c.sales_stage).label)}</option>`).join('')}</select><button class="btn sm" data-act="evinvite" data-send="1">Invite on WhatsApp</button><button class="btn sm ghost" data-act="evinvite">Mark invited</button></div>`:'<p class="muted" style="margin:0">Everyone open is already invited.</p>'}</div>`:''}
+      <div class="box"><h3>People (${ppl.length})</h3>
+        ${ppl.length?`<div class="list" style="background:#fff">${ppl.map(c=>{ const x = recOf(c,e.id);
+          return `<div class="row" style="flex-wrap:wrap" data-act="open" data-v="${c.id}"><span class="dot" style="background:${stage(c.sales_stage).c}"></span>
+            <div class="grow"><div class="nm">${esc(c.name)}</div><div class="meta">${esc(stage(c.sales_stage).label)}${c.origin_note?' · '+esc(c.origin_note.slice(0,50)):''}</div></div>
+            ${eventSteps(c,x)}${!past&&!x.rsvp_at?`<button class="btn sm ghost" data-act="wa" data-v="${c.id}" data-t="nudge" data-e="${e.id}">Nudge</button>`:''}${!past&&x.rsvp_at?`<button class="btn sm ghost" data-act="wa" data-v="${c.id}" data-t="remind" data-e="${e.id}">Remind</button>`:''}${past&&x.showed?`<button class="btn sm ghost" data-act="wa" data-v="${c.id}" data-t="after" data-e="${e.id}">Follow up</button>`:''}</div>`; }).join('')}</div>`
+          :'<p class="muted" style="margin:0">No one yet. Invite people above, or sign-ups from this event\'s form land here after a sync.</p>'}
+        <p class="muted" style="font-size:13px;margin-bottom:0">Invited, RSVP, Showed, Participated. "Showed" moves them to Showed up, "Participated" to Engaged.</p></div>
     </div><div>
-      <div class="box"><h3>Event details</h3><div class="grid2">${ef('name','Name')}${ef('date','Date and time','datetime-local')}</div>
-        <div class="grid2">${ef('time_note','Time note (other time zones)')}${ef('location','Location')}</div>
-        ${ef('form_url','JotForm sign-up link','url')}${ef('tag','Event tag (matches the hidden Event field, optional)')}
-        ${ef('wa_link','WhatsApp group link','url')}${ef('recording','Recording link','url')}</div>
-      <div class="box"><h3>Debrief</h3>
-        <label class="f">What worked<textarea data-efield="worked">${esc(e.worked)}</textarea></label>
-        <label class="f">What didn't<textarea data-efield="didnt">${esc(e.didnt)}</textarea></label>
-        <label class="f">Notes<textarea data-efield="notes">${esc(e.notes)}</textarea></label></div>
+      <div class="box"><h3>Event details</h3>
+        <label class="f">Type<select data-efield="type">${Object.entries(EVENT_TYPES).map(([k,t])=>`<option value="${k}" ${e.type===k?'selected':''}>${t.label}</option>`).join('')}</select></label>
+        <div class="grid2">${ef('name','Name')}${ef('date','Date and time','datetime-local')}</div>
+        <div class="grid2">${ef('location','Location')}${ef('time_note','Time note (other time zones)')}</div>
+        ${ef('wa_link','WhatsApp group link','url')}${ef('form_url','JotForm sign-up link (optional)','url')}${ef('tag','Event tag (optional, matches the form\'s hidden Event field)')}${ef('recording','Recording link','url')}</div>
+      <div class="box"><h3>Debrief</h3><label class="f">What worked<textarea data-efield="worked">${esc(e.worked)}</textarea></label>
+        <label class="f">What didn't<textarea data-efield="didnt">${esc(e.didnt)}</textarea></label><label class="f">Notes<textarea data-efield="notes">${esc(e.notes)}</textarea></label></div>
     </div></div>`;
 }
 
 function viewModal(){
   if(S.modal.type==='add') return `<div class="modal"><div class="mbox"><h2>Add prospect</h2>
-    <p class="muted" style="margin-top:-8px">For anyone you meet in person or who didn't come through a form.</p>
     <label class="f">Name<input id="a_name" autocomplete="off"></label>
+    <label class="f">Lead source<select id="a_src">${SOURCES.map(x=>`<option>${x}</option>`).join('')}</select></label>
+    <label class="f">How we met / the conversation<textarea id="a_origin" placeholder="E.g. met at the café, he's a coach, we talked surfing."></textarea></label>
     <div class="grid2"><label class="f">WhatsApp (with country code)<input id="a_wa" type="tel" placeholder="+62 812..."></label><label class="f">Instagram<input id="a_ig" placeholder="@handle"></label></div>
-    <div class="grid2"><label class="f">Email<input id="a_email" type="email"></label><label class="f">Source<select id="a_src">${SOURCES.map(x=>`<option ${x==='In person'?'selected':''}>${x}</option>`).join('')}</select></label></div>
-    <label class="f">Where did you meet / what do they want?<input id="a_hot" placeholder="Hot button"></label>
+    <div class="grid2"><label class="f">Email<input id="a_email" type="email"></label><label class="f">Location<input id="a_loc" placeholder="Canggu, Bali"></label></div>
     <div class="err" id="aerr" style="color:var(--rust);min-height:20px;font-size:14px"></div>
     <div class="bar"><button class="btn" data-act="saveadd">Save prospect</button><button class="btn ghost" data-act="cancel">Cancel</button></div></div></div>`;
-  if(S.modal.type==='dupe'){ const d = Store.getC(S.modal.id); return `<div class="modal"><div class="mbox"><h2>${esc(d.name)} is already in the CRM</h2>
-    <p>Their ${esc(S.modal.on)} matches, so no new record was made.</p>
+  if(S.modal.type==='dupe'){ const d = Store.getC(S.modal.id); return `<div class="modal"><div class="mbox"><h2>${esc(d.name)} is already in the CRM</h2><p>Their ${esc(S.modal.on)} matches, so no new record was made.</p>
     <div class="bar"><button class="btn" data-act="open" data-v="${d.id}">Open ${esc(first(d.name))}'s record</button><button class="btn ghost" data-act="cancel">Cancel</button></div></div></div>`; }
   if(S.modal.type==='event') return `<div class="modal"><div class="mbox"><h2>New event</h2>
-    <label class="f">Name<input id="e_name" placeholder="Free Live Session"></label>
-    <div class="grid2"><label class="f">Date and time<input id="e_date" type="datetime-local"></label><label class="f">Type<select id="e_type">${EVENT_TYPES.map(x=>`<option>${x}</option>`).join('')}</select></label></div>
-    <div class="grid2"><label class="f">Location<input id="e_loc" placeholder="Online, Canggu..."></label><label class="f">Time note<input id="e_note" placeholder="9AM Bali time"></label></div>
-    <label class="f">JotForm sign-up link<input id="e_form" type="url" placeholder="https://form.jotform.com/..."></label>
+    <label class="f">Type<select id="e_type">${Object.entries(EVENT_TYPES).map(([k,t])=>`<option value="${k}">${t.label}</option>`).join('')}</select></label>
+    <label class="f">Name<input id="e_name" placeholder="Friday Night Hangout"></label>
+    <div class="grid2"><label class="f">Date and time<input id="e_date" type="datetime-local"></label><label class="f">Location<input id="e_loc" placeholder="Canggu, Online..."></label></div>
+    <div class="grid2"><label class="f">Repeat<select id="e_rep"><option value="0">Just once</option><option value="7">Every week</option><option value="14">Every 2 weeks</option></select></label>
+      <label class="f">How many<select id="e_cnt"><option>4</option><option>6</option><option>8</option></select></label></div>
     <label class="f">WhatsApp group link<input id="e_wa" type="url" placeholder="https://chat.whatsapp.com/..."></label>
+    <label class="f">JotForm sign-up link (optional)<input id="e_form" type="url" placeholder="https://form.jotform.com/..."></label>
     <div class="err" id="eerr" style="color:var(--rust);min-height:20px;font-size:14px"></div>
     <div class="bar"><button class="btn" data-act="saveevent">Save event</button><button class="btn ghost" data-act="cancel">Cancel</button></div></div></div>`;
   return '';
@@ -1360,24 +1336,21 @@ function viewModal(){
 
 /* ---------- 10. EVENTS ---------- */
 function exportCSV(){
-  const cols = ['name','email','whatsapp','instagram','location','source','sales_stage','cs_stage','serious','hot_button','owner','next_action','next_date','gender','meeting_country','home_country','secondary_country','initial_contact','message_result'];
+  const cols = ['name','email','whatsapp','instagram','location','source','origin_note','sales_stage','cs_stage','owner','next_action','next_date','gender','meeting_country','home_country','secondary_country','initial_contact','message_result'];
   const cell = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
-  const rows = Store.contacts().map(c=>[...cols.map(k=>cell(c[k])), cell(c.events.map(x=>(Store.getE(x.id)||{}).name).join('; ')), cell(c.deal?c.deal.price:''), cell(paid(c))].join(','));
-  dl('lbyd-contacts-'+todayStr()+'.csv', [cols.concat(['events','deal_price','paid']).join(','), ...rows].join('\n'), 'text/csv');
+  const rows = Store.contacts().map(c=>[...cols.map(k=>cell(c[k])), cell(c.membership?TIERS_PLAN[c.membership.tier].label+(c.membership.status==='cancelled'?' (cancelled)':''):''), cell(c.membership?c.membership.price:''), cell(totalPaid(c)), cell(c.events.map(x=>(Store.getE(x.id)||{}).name).join('; '))].join(','));
+  dl('lbyd-contacts-'+todayStr()+'.csv', [cols.concat(['tier','price_per_month','total_paid','events']).join(','), ...rows].join('\n'), 'text/csv');
 }
 function dl(name, content, type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
 
 document.addEventListener('click', e => {
-  if(e.target.closest('a[href]:not([href="#"])')) return;   // real links (WhatsApp group, Join, Recording) just open
+  if(e.target.closest('a[href]:not([href="#"])')) return;
   const el = e.target.closest('[data-act]'); if(!el) return;
-  const act = el.dataset.act, v = el.dataset.v;
-  if(el.tagName==='A' && el.getAttribute('href')==='#') e.preventDefault();
-  const c = S.open ? Store.getC(S.open) : null;
-  const byId = id => Store.getC(id);
+  if(el.tagName==='A') e.preventDefault();
+  const act = el.dataset.act, v = el.dataset.v, c = S.open ? Store.getC(S.open) : null, byId = id => Store.getC(id);
   switch(act){
     case 'gatepick': S.gatePick=v; render(); $('#pin').focus(); break;
-    case 'login': if($('#pin').value.trim()===ROLES[S.gatePick].pin){ S.role=S.gatePick; S.tab=ROLES[S.role].home; render(); syncForms(false); }
-                  else $('#gerr').textContent="That PIN doesn't match. Check it and try again."; break;
+    case 'login': if($('#pin').value.trim()===ROLES[S.gatePick].pin){ S.role=S.gatePick; S.tab=ROLES[S.role].home; render(); syncAll(false); } else $('#gerr').textContent="That PIN doesn't match. Check it and try again."; break;
     case 'logout': S.role=null; S.open=null; S.client=null; S.event=null; render(); break;
     case 'tab': S.tab=v; S.open=null; S.client=null; S.event=null; render(); window.scrollTo(0,0); break;
     case 'back': S.client=null; S.event=null; render(); break;
@@ -1386,20 +1359,25 @@ document.addEventListener('click', e => {
     case 'event': S.event=v; S.client=null; S.open=null; render(); window.scrollTo(0,0); break;
     case 'close': S.open=null; render(); break;
     case 'ptab': S.ptab=v; render(); break;
-    case 'sync': syncForms(true); break;
-    case 'wa': sendWA(byId(v), el.dataset.t); render(); break;
+    case 'sync': syncAll(true); break;
+    case 'wa': sendWA(byId(v), el.dataset.t, el.dataset.e ? Store.getE(el.dataset.e) : null); render(); break;
+    case 'invitego': inviteTo(byId(v), Store.getE(el.dataset.e), true); render(); break;
+    case 'invitepick': { const ev = Store.getE($('#invpick').value); inviteTo(byId(v), ev, !!el.dataset.send); render(); break; }
+    case 'evinvite': { const x = byId($('#evinv').value); inviteTo(x, Store.getE(S.event), !!el.dataset.send); render(); break; }
+    case 'step': setStep(byId(v), el.dataset.e, el.dataset.s); render(); break;
     case 'review': S.open=v; S.ptab='forms'; render(); break;
-    case 'done': { const x = byId(v); x.last_contacted=Date.now(); if(x.next_date && x.next_date<=todayStr()) x.next_date=''; if(x.from_form && !x.form_seen) x.form_seen=true; logTo(x,'Marked handled'); save(x,'Marked handled'); render(); break; }
+    case 'done': { const x = byId(v); x.last_contacted=Date.now(); if(x.next_date && x.next_date<=todayStr()) x.next_date=''; logTo(x,'Marked handled'); save(x,'Marked handled'); render(); break; }
     case 'serious': c.serious=!c.serious; logTo(c, c.serious?'Marked serious':'Serious flag removed'); save(c); render(); break;
     case 'copylink': copy(formLink(v, c)); break;
     case 'copyurl': copy(el.dataset.u); break;
-    case 'addnote': { const x = el.dataset.cid ? byId(el.dataset.cid) : c; const body = $('#nbody').value.trim(); if(!body){ toast('Write the note first'); return; } addNote(x, body, $('#ntag').value); render(); break; }
-    case 'cplan': S.closePlan=v; render(); break;
-    case 'cpay': S.closePay=v; render(); break;
-    case 'closedeal': closeDeal(c, S.closePlan, $('#cprice').value, S.closePay); render(); break;
+    case 'addnote': { const x = el.dataset.cid ? byId(el.dataset.cid) : c, body = $('#nbody').value.trim(); if(!body){ toast('Write the note first'); return; } addNote(x, body, $('#ntag').value); render(); break; }
+    case 'mtier': S.mTier=v; render(); break;
+    case 'startmem': { const p = Number($('#mprice').value); if(!(p>0)){ toast('Set the monthly price first'); return; } startMembership(c, S.mTier, p, $('#mcourse').value, $('#mstart').value); render(); break; }
+    case 'upgrade': { const p = Number($('#upprice').value); if(!(p>0)){ toast('Set the Premium price first'); return; } upgrade(c, p); render(); break; }
+    case 'cancelmem': if(confirm('Cancel '+c.name+"'s membership? Their history stays, and you can restart it later.")){ cancelMembership(c); render(); } break;
+    case 'restart': restartMembership(c); render(); break;
     case 'logpay': { const amt = Number($('#pamt').value); if(!(amt>0)){ toast('Enter an amount'); return; } logPayment(c, amt, $('#pdate').value, $('#pmeth').value); render(); break; }
     case 'archive': c.archived=!c.archived; logTo(c, c.archived?'Archived':'Restored'); save(c, c.archived?'Archived':'Restored'); render(); break;
-    case 'attend': setAttended(byId(v), S.event, el.dataset.y==='1'); render(); break;
     case 'goal': { const x = byId(el.dataset.cid), g = x.goals.find(y=>y.id===v); g.done=!g.done; logTo(x,(g.done?'Goal done: ':'Goal reopened: ')+g.text); save(x, g.done?'Goal done':'Goal reopened'); render(); break; }
     case 'addgoal': { const x = byId(v), t = $('#gnew').value.trim(); if(!t) return; x.goals.push({id:rid('g'), text:t, done:false, at:Date.now()}); logTo(x,'Goal set: '+t); save(x,'Goal added'); render(); break; }
     case 'todo': { const t = Store.tasks().find(y=>y.id===v); t.done=true; Store.putT(t); toast('Done'); render(); break; }
@@ -1408,13 +1386,18 @@ document.addEventListener('click', e => {
     case 'addevent': S.modal={type:'event'}; render(); $('#e_name').focus(); break;
     case 'cancel': S.modal=null; render(); break;
     case 'saveevent': {
-      const name=$('#e_name').value.trim(), date=$('#e_date').value, form=$('#e_form').value.trim();
+      const name=$('#e_name').value.trim(), date=$('#e_date').value, form=$('#e_form').value.trim(), rep=Number($('#e_rep').value), cnt=rep?Number($('#e_cnt').value):1;
       if(!name||!date){ $('#eerr').textContent='Add a name and a date.'; return; }
-      const ev = {id:rid('e'), name, date, type:$('#e_type').value, location:$('#e_loc').value.trim(), time_note:$('#e_note').value.trim(),
-        form_url:form, form_id:formId(form), tag:'', wa_link:$('#e_wa').value.trim(), recording:'', worked:'', didnt:'', notes:'', demo:false, created_at:Date.now()};
-      Store.putE(ev); S.modal=null; S.event=ev.id; render(); toast('Event added'); if(form) syncForms(false); break; }
+      let firstId = null;
+      for(let i=0;i<cnt;i++){
+        const d = new Date(new Date(date).getTime() + i*rep*DAY);
+        const ev = {id:rid('e'), name, date:localISO(d.getTime()).slice(0,16), type:$('#e_type').value, location:$('#e_loc').value.trim(), time_note:'',
+          form_url:form, form_id:formId(form), tag:cnt>1?localISO(d.getTime()).slice(0,10):'', wa_link:$('#e_wa').value.trim(), recording:'', worked:'', didnt:'', notes:'', demo:false, created_at:Date.now()};
+        Store.putE(ev); if(!firstId) firstId = ev.id;
+      }
+      S.modal=null; S.event=firstId; render(); toast(cnt>1?cnt+' events added. Update each WhatsApp group link as you go.':'Event added'); break; }
     case 'saveadd': {
-      const f = {name:$('#a_name').value.trim(), whatsapp:$('#a_wa').value.trim(), instagram:$('#a_ig').value.trim(), email:$('#a_email').value.trim(), source:$('#a_src').value, hot_button:$('#a_hot').value.trim()};
+      const f = {name:$('#a_name').value.trim(), whatsapp:$('#a_wa').value.trim(), instagram:$('#a_ig').value.trim(), email:$('#a_email').value.trim(), source:$('#a_src').value, origin_note:$('#a_origin').value.trim(), location:$('#a_loc').value.trim()};
       if(!f.name){ $('#aerr').textContent='Add a name to save this prospect.'; return; }
       if(!f.whatsapp && !f.instagram && !f.email){ $('#aerr').textContent='Add at least one way to reach them: WhatsApp, Instagram or email.'; return; }
       const m = findMatch(f);
@@ -1425,39 +1408,34 @@ document.addEventListener('click', e => {
     case 'tag': S.tag=v; render(); break;
     case 'csv': exportCSV(); break;
     case 'json': dl('lbyd-backup-'+todayStr()+'.json', JSON.stringify(Store.dump(),null,2), 'application/json'); break;
-    case 'reset': if(confirm('Reset the test data? Test contacts and test events go back to how they started. Real sign-ups stay.')){ Store.reset(); S.open=null; S.client=null; S.event=null; render(); toast('Test data reset'); syncForms(false); } break;
+    case 'reset': if(confirm('Reset the test data? Test contacts and events go back to how they started. Real people stay.')){ Store.reset(); S.open=null; S.client=null; S.event=null; render(); toast('Test data reset'); } break;
   }
 });
-
 document.addEventListener('change', e => {
   const el = e.target;
   if(el.id==='showtest'){ Store.prefs.showTest = el.checked; Store.savePrefs(); render(); return; }
   if(el.id==='filter'){ S.filter=el.value; $('#clist').innerHTML=contactsList(); return; }
-  if(el.dataset.efield){ const ev = Store.getE(S.event); if(!ev) return; const k = el.dataset.efield;
-    ev[k] = el.value.trim(); if(k==='form_url') ev.form_id = formId(ev[k]); Store.putE(ev); toast('Saved');
-    if(['name','date','wa_link','recording','form_url'].includes(k)) render(); return; }
+  if(el.dataset.efield){ const ev = Store.getE(S.event); if(!ev) return; const k = el.dataset.efield; ev[k] = el.value.trim(); if(k==='form_url') ev.form_id = formId(ev[k]);
+    Store.putE(ev); toast('Saved'); if(['name','date','type','wa_link','recording','form_url','location'].includes(k)) render(); return; }
   if(el.dataset.change==='cs' && el.dataset.cid){ setCS(Store.getC(el.dataset.cid), el.value); render(); return; }
   const c = S.open ? Store.getC(S.open) : null; if(!c) return;
-  if(el.hasAttribute('data-evpick')){ if(!el.value) return; c.events.push({id:el.value, at:Date.now(), attended:null});
-    if(sIdx(c.sales_stage)<sIdx('registered')) c.sales_stage='registered'; logTo(c,'Added to '+Store.getE(el.value).name); save(c,'Added to event'); render(); return; }
-  if(el.dataset.change==='stage'){ if(el.value==='sold' && !c.deal){ S.ptab='money'; render(); toast('Close the deal here to mark them Sold'); return; } setStage(c, el.value); render(); return; }
+  if(el.dataset.change==='stage'){
+    if(['base','premium'].includes(el.value) && !isMember(c)){ S.ptab='membership'; S.mTier=el.value; render(); toast('Start their membership here'); return; }
+    if(['base','premium'].includes(el.value) && isMember(c) && el.value!==c.membership.tier){ S.ptab='membership'; render(); toast(el.value==='premium'?'Use Upgrade to Premium here':'Change the tier here'); return; }
+    setStage(c, el.value); render(); return; }
   if(el.dataset.change==='cs'){ setCS(c, el.value); render(); return; }
   if(el.dataset.field){
     const k = el.dataset.field, val = el.value.trim();
     if(['email','whatsapp','instagram'].includes(k) && val){ const m = findMatch({[k]:val}, c.id); if(m){ toast('That '+k+' already belongs to '+m.name); el.value=c[k]; return; } }
     if(k==='name' && !val){ toast("Name can't be empty"); el.value=c.name; return; }
     c[k] = k==='instagram' ? normIG(val) : val; if(k==='instagram') el.value=c[k];
-    save(c,'Saved'); if(k==='name'){ const h=document.querySelector('.ph h2'); if(h) h.textContent=val; } return;
+    save(c,'Saved'); if(['name','origin_note','location','source'].includes(k)) { const pb=$('.pb'), y=pb?pb.scrollTop:0; render(); const pb2=$('.pb'); if(pb2) pb2.scrollTop=y; } return;
   }
   if(el.dataset.callf){
-    c.call = c.call || {at:null, meet:'', outcome:'booked'};
-    const k = el.dataset.callf;
-    if(k==='at') c.call.at = el.value ? new Date(el.value).getTime() : null;
-    else if(k==='meet') c.call.meet = el.value.trim();
-    else c.call.outcome = el.value;
-    if(c.call.at && sIdx(c.sales_stage) < sIdx('call') && c.sales_stage!=='lost') c.sales_stage='call';
-    logTo(c, k==='outcome' ? 'Call outcome: '+CALL_OUTCOMES.find(o=>o.id===el.value).label : 'Sales call updated');
-    save(c,'Saved'); render();
+    c.call = c.call || {at:null, meet:'', outcome:'booked'}; const k = el.dataset.callf;
+    if(k==='at') c.call.at = el.value ? new Date(el.value).getTime() : null; else if(k==='meet') c.call.meet = el.value.trim(); else c.call.outcome = el.value;
+    if(c.call.at) bump(c,'call');
+    logTo(c, k==='outcome' ? 'Call outcome: '+CALL_OUTCOMES.find(o=>o.id===el.value).label : 'Call updated'); save(c,'Saved'); render();
   }
 });
 document.addEventListener('input', e => { if(e.target.id==='q'){ S.q=e.target.value; $('#clist').innerHTML=contactsList(); } });
